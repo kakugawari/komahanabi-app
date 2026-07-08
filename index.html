@@ -1,0 +1,1335 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>駒花火 — 駒の動きが花火になる</title>
+<style>
+  :root{ --ink:#1c1a17; --paper:#f1f2ec; }
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{height:100%;overflow:hidden;font-family:'Hiragino Mincho ProN','Yu Mincho','Noto Serif JP','MS Mincho',serif;}
+  body{background:#05060f;touch-action:none;user-select:none;-webkit-user-select:none;}
+  #gl{position:fixed;inset:0;display:none;width:100%;height:100%;}
+  body.sumi #gl{display:block;}
+  #cv{position:fixed;inset:0;display:block;}
+
+  /* ---------- header ---------- */
+  #hud{
+    position:fixed;top:0;left:0;right:0;z-index:10;
+    display:flex;align-items:flex-start;justify-content:space-between;
+    padding:calc(14px + env(safe-area-inset-top)) 18px 10px;
+    pointer-events:none;
+  }
+  #titleBtn{
+    pointer-events:auto;cursor:pointer;
+    appearance:none;background:none;border:0;
+    display:flex;flex-direction:column;align-items:center;gap:8px;
+    font-family:inherit;
+  }
+  #titleTxt{
+    writing-mode:vertical-rl;
+    font-size:21px;letter-spacing:.4em;font-weight:500;line-height:1;
+    color:rgba(210,240,255,.9);
+    text-shadow:0 0 18px rgba(126,240,255,.55);
+    transition:color .8s,text-shadow .8s;
+  }
+  #chev{
+    font-size:10px;color:rgba(210,240,255,.55);
+    transition:transform .45s cubic-bezier(.4,0,.2,1), color .8s;
+  }
+  body.menuOpen #chev{transform:rotate(180deg);}
+  #count{
+    text-align:right;font-size:11px;letter-spacing:.3em;
+    color:rgba(210,240,255,.5);transition:color .8s;
+  }
+  #count b{
+    display:block;font-size:26px;font-weight:500;letter-spacing:.05em;
+    color:rgba(210,240,255,.95);
+    text-shadow:0 0 16px rgba(126,240,255,.6);
+    transition:color .8s,text-shadow .8s;
+  }
+
+  /* ---------- slide-out settings column ---------- */
+  #menu{
+    position:fixed;z-index:11;
+    top:calc(150px + env(safe-area-inset-top));left:14px;
+    display:flex;flex-direction:column;gap:14px;
+    padding:18px 16px;border-radius:24px;
+    background:rgba(255,255,255,.07);
+    backdrop-filter:blur(20px) saturate(1.4);
+    -webkit-backdrop-filter:blur(20px) saturate(1.4);
+    border:1px solid rgba(255,255,255,.14);
+    box-shadow:0 12px 48px rgba(0,0,0,.4), inset 0 1px 0 rgba(255,255,255,.12);
+    opacity:0;transform:translateY(-14px) scale(.97);
+    pointer-events:none;
+    transition:opacity .45s cubic-bezier(.4,0,.2,1), transform .45s cubic-bezier(.4,0,.2,1),
+               background .8s,border-color .8s,box-shadow .8s;
+  }
+  body.menuOpen #menu{opacity:1;transform:none;pointer-events:auto;}
+  .row{
+    display:flex;flex-direction:column;gap:7px;
+    opacity:0;transform:translateY(-6px);
+    transition:opacity .4s ease,transform .4s ease;
+  }
+  body.menuOpen .row{opacity:1;transform:none;}
+  body.menuOpen .row:nth-child(1){transition-delay:.05s}
+  body.menuOpen .row:nth-child(2){transition-delay:.12s}
+  body.menuOpen .row:nth-child(3){transition-delay:.19s}
+  body.menuOpen .row:nth-child(4){transition-delay:.26s}
+  .mlbl{
+    font-size:10.5px;letter-spacing:.35em;padding-left:6px;
+    color:rgba(230,245,255,.45);transition:color .8s;
+  }
+  .seg{display:flex;gap:2px;padding:3px;border-radius:999px;
+    background:rgba(0,0,0,.24);transition:background .8s;}
+  .seg button{
+    appearance:none;border:0;background:transparent;cursor:pointer;
+    font-family:inherit;font-size:12.5px;letter-spacing:.12em;
+    color:rgba(230,245,255,.55);
+    padding:7px 14px;border-radius:999px;
+    transition:all .35s cubic-bezier(.4,0,.2,1);
+    flex:1;white-space:nowrap;
+  }
+  .seg button.on{
+    color:#0a1420;font-weight:600;
+    background:linear-gradient(135deg,#9df3ff,#c9a8ff);
+    box-shadow:0 0 14px rgba(140,220,255,.55);
+  }
+
+  /* ---------- sumi theme ---------- */
+  body.sumi{background:var(--paper);}
+  body.sumi #titleTxt{color:rgba(28,26,23,.85);text-shadow:none;}
+  body.sumi #chev{color:rgba(28,26,23,.45);}
+  body.sumi #count{color:rgba(28,26,23,.45);}
+  body.sumi #count b{color:rgba(28,26,23,.85);text-shadow:none;}
+  body.sumi #menu{
+    background:rgba(255,255,255,.5);
+    border-color:rgba(28,26,23,.12);
+    box-shadow:0 12px 40px rgba(28,26,23,.16), inset 0 1px 0 rgba(255,255,255,.65);
+  }
+  body.sumi .mlbl{color:rgba(28,26,23,.42);}
+  body.sumi .seg{background:rgba(28,26,23,.07);}
+  body.sumi .seg button{color:rgba(28,26,23,.5);}
+  body.sumi .seg button.on{
+    color:#f1f2ec;background:linear-gradient(135deg,#3a3733,#1c1a17);
+    box-shadow:0 2px 12px rgba(28,26,23,.35);
+  }
+
+  /* ---------- hint ---------- */
+  #hint{
+    position:fixed;left:50%;top:40%;transform:translate(-50%,-50%);
+    z-index:9;text-align:center;pointer-events:none;
+    color:rgba(220,245,255,.8);transition:opacity 1.4s,color .8s;
+    letter-spacing:.3em;line-height:2.4;font-size:14px;
+    text-shadow:0 0 20px rgba(126,240,255,.4);
+    width:90%;
+  }
+  body.sumi #hint{color:rgba(28,26,23,.6);text-shadow:none;}
+  #hint.gone{opacity:0;}
+</style>
+</head>
+<body>
+<canvas id="gl"></canvas>
+<canvas id="cv"></canvas>
+
+<div id="hud">
+  <button id="titleBtn" aria-label="設定を開く">
+    <span id="titleTxt">駒花火</span>
+    <span id="chev">▽</span>
+  </button>
+  <div id="count"><b id="score">0</b></div>
+</div>
+
+<div id="hint">駒にふれると その駒の動きが 花火になる<br>火の粉にふれると もう一度はじける<br>なにもない夜空を長押しすると 線香花火</div>
+
+<div id="menu">
+  <div class="row"><span class="mlbl">画風</span>
+    <div class="seg" id="segTheme">
+      <button data-v="night" class="on">夜空</button>
+      <button data-v="sumi">水墨</button>
+    </div>
+  </div>
+  <div class="row"><span class="mlbl">向き</span>
+    <div class="seg" id="segDir">
+      <button data-v="top" class="on">上から</button>
+      <button data-v="all">四方八方</button>
+    </div>
+  </div>
+  <div class="row"><span class="mlbl">速さ</span>
+    <div class="seg" id="segSpd">
+      <button data-v="1">緩</button>
+      <button data-v="1.7" class="on">並</button>
+      <button data-v="2.8">速</button>
+      <button data-v="rand">乱</button>
+    </div>
+  </div>
+  <div class="row"><span class="mlbl">音</span>
+    <div class="seg" id="segSnd">
+      <button data-v="on" class="on">あり</button>
+      <button data-v="off">なし</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+"use strict";
+const cv = document.getElementById('cv');
+const ctx = cv.getContext('2d');
+const glCanvas = document.getElementById('gl');
+// 花火の残光を焼き付けるトレイル層(長時間露光のような光跡)
+const trailCv = document.createElement('canvas');
+const trail = trailCv.getContext('2d');
+let W=0,H=0,DPR=1;
+function resize(){
+  DPR = Math.min(window.devicePixelRatio||1, 2);
+  W = window.innerWidth; H = window.innerHeight;
+  cv.width=W*DPR; cv.height=H*DPR;
+  cv.style.width=W+'px'; cv.style.height=H+'px';
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+  trailCv.width=W*DPR; trailCv.height=H*DPR;
+  trail.setTransform(DPR,0,0,DPR,0,0);
+  const gdpr=Math.min(window.devicePixelRatio||1,1.5);
+  glCanvas.width=Math.floor(W*gdpr); glCanvas.height=Math.floor(H*gdpr);
+  if(fluid) fluid.resizeFBOs();
+  makeStars(); makePaper();
+}
+window.addEventListener('resize',resize);
+
+/* ================= settings & menu ================= */
+let theme='night', dirMode='top', speedMode='1.7', soundOn=true;
+function wireSeg(id, fn){
+  const seg=document.getElementById(id);
+  seg.addEventListener('click',e=>{
+    const b=e.target.closest('button'); if(!b)return;
+    seg.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));
+    fn(b.dataset.v);
+  });
+}
+wireSeg('segTheme',v=>{
+  theme=v;document.body.classList.toggle('sumi',v==='sumi');
+  if(v==='sumi'&&fluid) fluid.reset();
+  clearTrail(); clearSenko();
+});
+wireSeg('segDir',v=>dirMode=v);
+wireSeg('segSpd',v=>speedMode=v);
+wireSeg('segSnd',v=>soundOn=(v==='on'));
+const titleBtn=document.getElementById('titleBtn');
+titleBtn.addEventListener('click',e=>{
+  e.stopPropagation();
+  document.body.classList.toggle('menuOpen');
+});
+function speedMult(){
+  return speedMode==='rand' ? .7+Math.random()*2.3 : parseFloat(speedMode);
+}
+function speedNominal(){
+  return speedMode==='rand' ? 1.9 : parseFloat(speedMode);
+}
+
+/* ================= sound ================= */
+let AC=null, master, wet, noiseBuf;
+function initAudio(){
+  if(AC) return;
+  AC = new (window.AudioContext||window.webkitAudioContext)();
+  master=AC.createGain(); master.gain.value=.8; master.connect(AC.destination);
+  const verb=AC.createConvolver();
+  const dur=3.4, len=AC.sampleRate*dur, buf=AC.createBuffer(2,len,AC.sampleRate);
+  for(let ch=0;ch<2;ch++){const d=buf.getChannelData(ch);
+    for(let i=0;i<len;i++) d[i]=(Math.random()*2-1)*Math.pow(1-i/len,3);}
+  verb.buffer=buf;
+  wet=AC.createGain(); wet.gain.value=.6;
+  wet.connect(verb); verb.connect(master);
+  const nl=AC.sampleRate*1.5; noiseBuf=AC.createBuffer(1,nl,AC.sampleRate);
+  const nd=noiseBuf.getChannelData(0);
+  for(let i=0;i<nl;i++) nd[i]=Math.random()*2-1;
+}
+function env(node,t0,attack,t1,peak,wetAmt){
+  const g=AC.createGain();
+  g.gain.setValueAtTime(0.0001,t0);
+  g.gain.exponentialRampToValueAtTime(Math.max(.0001,peak),t0+attack);
+  g.gain.exponentialRampToValueAtTime(.0001,t1);
+  node.connect(g); g.connect(master);
+  if(wetAmt){const wg=AC.createGain(); wg.gain.value=wetAmt; g.connect(wg); wg.connect(wet);}
+}
+function noiseSrc(t0,dur){
+  const s=AC.createBufferSource(); s.buffer=noiseBuf; s.loop=true;
+  s.start(t0); s.stop(t0+dur+.05); return s;
+}
+/* 夜空:太鼓のドーン */
+function soundNight(){
+  if(!AC||!soundOn) return;
+  const t=AC.currentTime;
+  const det=.94+Math.random()*.12;
+  const o=AC.createOscillator(); o.type='sine';
+  o.frequency.setValueAtTime(100*det,t);
+  o.frequency.exponentialRampToValueAtTime(34*det,t+.55);
+  env(o,t,.008,t+1.4,.85,.7); o.start(t); o.stop(t+1.5);
+  const o2=AC.createOscillator(); o2.type='triangle';
+  o2.frequency.setValueAtTime(190*det,t);
+  o2.frequency.exponentialRampToValueAtTime(60*det,t+.2);
+  env(o2,t,.004,t+.4,.22,.5); o2.start(t); o2.stop(t+.45);
+  const n=noiseSrc(t,.07);
+  const lp=AC.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value=850;
+  n.connect(lp); env(lp,t,.002,t+.08,.4,.4);
+}
+/* 水墨:低く艶のある水滴 */
+function soundSumi(quiet){
+  if(!AC||!soundOn) return;
+  const t=AC.currentTime;
+  const f0=(quiet?95:130)+Math.random()*(quiet?70:120);
+  const vol=quiet?.5:1;
+  const n=noiseSrc(t,.03);
+  const lp=AC.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value=900;
+  n.connect(lp); env(lp,t,.002,t+.04,.12*vol,.3);
+  const o=AC.createOscillator(); o.type='sine';
+  o.frequency.setValueAtTime(f0,t+.014);
+  o.frequency.exponentialRampToValueAtTime(f0*2.05,t+.3);
+  env(o,t+.014,.018,t+.6,.45*vol,1.0); o.start(t+.014); o.stop(t+.65);
+  const o2=AC.createOscillator(); o2.type='sine';
+  o2.frequency.setValueAtTime(f0*.55,t+.06);
+  o2.frequency.exponentialRampToValueAtTime(f0*.38,t+.8);
+  env(o2,t+.06,.06,t+1.1,.15*vol,1.3); o2.start(t+.06); o2.stop(t+1.15);
+  if(!quiet && Math.random()<.4){
+    const t2=t+.26+Math.random()*.18, f2=f0*(1.1+Math.random()*.3);
+    const o3=AC.createOscillator(); o3.type='sine';
+    o3.frequency.setValueAtTime(f2,t2);
+    o3.frequency.exponentialRampToValueAtTime(f2*1.9,t2+.22);
+    env(o3,t2,.015,t2+.5,.18,1.3); o3.start(t2); o3.stop(t2+.55);
+  }
+  const n2=noiseSrc(t+.05,.7);
+  const lp2=AC.createBiquadFilter(); lp2.type='lowpass';
+  lp2.frequency.setValueAtTime(380,t+.05);
+  lp2.frequency.exponentialRampToValueAtTime(110,t+.85);
+  n2.connect(lp2); env(lp2,t+.05,.1,t+.9,.05*vol,1.6);
+}
+/* 追い打ち:花火が開くときと同じ音(ドン) */
+function soundChase(){ soundNight(); }
+/* 線香花火:ごく小さな爆ぜ音(パチ) */
+function soundCrackle(){
+  if(!AC||!soundOn) return;
+  const t=AC.currentTime;
+  const n=noiseSrc(t,.02);
+  const hp=AC.createBiquadFilter(); hp.type='highpass'; hp.frequency.value=3600+Math.random()*2200;
+  n.connect(hp); env(hp,t,.001,t+.03,.06+Math.random()*.05,.5);
+}
+
+/* ================= piece definitions ================= */
+const GOLD_M=[{x:0,y:-1},{x:-1,y:-1},{x:1,y:-1},{x:-1,y:0},{x:1,y:0},{x:0,y:1}];
+const PIECES=[
+ {k:'歩', m:[{x:0,y:-1}], w:1},
+ {k:'香', m:[{x:0,y:-1,s:1}], w:1},
+ {k:'桂', m:[{x:-1,y:-2,j:1},{x:1,y:-2,j:1}], w:1},
+ {k:'銀', m:[{x:0,y:-1},{x:-1,y:-1},{x:1,y:-1},{x:-1,y:1},{x:1,y:1}], w:1},
+ {k:'金', m:GOLD_M, w:1},
+ {k:'と', m:GOLD_M, w:.7, red:1},
+ {k:'角', m:[{x:-1,y:-1,s:1},{x:1,y:-1,s:1},{x:-1,y:1,s:1},{x:1,y:1,s:1}], w:1},
+ {k:'飛', m:[{x:0,y:-1,s:1},{x:0,y:1,s:1},{x:-1,y:0,s:1},{x:1,y:0,s:1}], w:1},
+ {k:'玉', m:[{x:0,y:-1},{x:-1,y:-1},{x:1,y:-1},{x:-1,y:0},{x:1,y:0},{x:0,y:1},{x:-1,y:1},{x:1,y:1}], w:.8},
+ {k:'龍', m:[{x:0,y:-1,s:1},{x:0,y:1,s:1},{x:-1,y:0,s:1},{x:1,y:0,s:1},
+             {x:-1,y:-1},{x:1,y:-1},{x:-1,y:1},{x:1,y:1}], w:1, red:1},
+ {k:'馬', m:[{x:-1,y:-1,s:1},{x:1,y:-1,s:1},{x:-1,y:1,s:1},{x:1,y:1,s:1},
+             {x:0,y:-1},{x:0,y:1},{x:-1,y:0},{x:1,y:0}], w:1, red:1},
+];
+const totalW = PIECES.reduce((a,p)=>a+p.w,0);
+function pickPiece(){
+  let r=Math.random()*totalW;
+  for(const p of PIECES){ if((r-=p.w)<=0) return p; }
+  return PIECES[0];
+}
+const NEON=['#00f0ff','#ff2fd6','#8dff3a','#ffe93a','#b56bff','#ff6b3a','#3affc3'];
+/* 墨の色(吸収量):黒墨・藍・朱 */
+const INK_BLACK =[0.80,0.85,0.92];
+const INK_VERM  =[0.18,0.72,0.80];
+
+/* ================= background(2D側) ================= */
+let stars=[], paperSpecks=[];
+function makeStars(){
+  stars=[];
+  const n=Math.floor(W*H/9000);
+  for(let i=0;i<n;i++) stars.push({x:Math.random()*W,y:Math.random()*H,r:Math.random()*1.3+.3,p:Math.random()*Math.PI*2,v:.5+Math.random()});
+}
+function makePaper(){
+  paperSpecks=[];
+  const n=Math.floor(W*H/7000);
+  for(let i=0;i<n;i++) paperSpecks.push({x:Math.random()*W,y:Math.random()*H,r:Math.random()*1+.2,a:Math.random()*.035+.01});
+}
+function drawBG(t){
+  if(theme==='night'){
+    const g=ctx.createLinearGradient(0,0,0,H);
+    g.addColorStop(0,'#04050e'); g.addColorStop(.55,'#0a0d26'); g.addColorStop(1,'#191036');
+    ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
+    for(const s of stars){
+      const tw=.4+.6*Math.abs(Math.sin(t*.0009*s.v+s.p));
+      ctx.globalAlpha=tw*.85;
+      ctx.fillStyle='#cfe0ff';
+      ctx.beginPath();ctx.arc(s.x,s.y,s.r,0,7);ctx.fill();
+    }
+    ctx.globalAlpha=1;
+  }else{
+    // 流体レイヤーが下にあるので透明に。紙の質感と水面の光だけ重ねる
+    ctx.clearRect(0,0,W,H);
+    if(!fluid){
+      ctx.fillStyle='#f1f2ec'; ctx.fillRect(0,0,W,H);
+    }
+    const lx=W*.5+Math.sin(t*.00012)*W*.35, ly=H*.4+Math.cos(t*.00009)*H*.3;
+    const sheen=ctx.createRadialGradient(lx,ly,0,lx,ly,Math.max(W,H)*.55);
+    sheen.addColorStop(0,'rgba(255,255,255,.16)');
+    sheen.addColorStop(1,'rgba(255,255,255,0)');
+    ctx.fillStyle=sheen; ctx.fillRect(0,0,W,H);
+    ctx.fillStyle='#1c1a17';
+    for(const s of paperSpecks){
+      ctx.globalAlpha=s.a;
+      ctx.beginPath();ctx.arc(s.x,s.y,s.r,0,7);ctx.fill();
+    }
+    ctx.globalAlpha=1;
+  }
+}
+
+/* ================= falling kanji ================= */
+const pieces=[];
+function spawnPiece(){
+  const def=pickPiece();
+  const base=Math.min(W,H);
+  const r=Math.max(30, Math.min(52, base*.065));
+  let x,y,vx,vy;
+  const spd=(base*.0022+1.1)*speedMult()*(.85+Math.random()*.3);
+  if(dirMode==='top'){
+    x=r+Math.random()*(W-2*r); y=-r*2;
+    vx=(Math.random()-.5)*.4; vy=spd;
+  }else{
+    const ang=Math.random()*Math.PI*2;
+    const cx=W/2, cy=H/2, R=Math.hypot(W,H)/2+r*2;
+    x=cx+Math.cos(ang)*R; y=cy+Math.sin(ang)*R;
+    const tx=W*(.2+Math.random()*.6), ty=H*(.2+Math.random()*.6);
+    const d=Math.hypot(tx-x,ty-y);
+    vx=(tx-x)/d*spd; vy=(ty-y)/d*spd;
+  }
+  pieces.push({
+    def, x, y, vx, vy, r,
+    rot:(Math.random()-.5)*.4,
+    rv:(Math.random()-.5)*.01,
+    sway:Math.random()*Math.PI*2,
+    neon:NEON[(Math.random()*NEON.length)|0],
+    inkCol: def.red ? INK_VERM : INK_BLACK,
+    born:performance.now(),
+  });
+}
+let spawnTimer=0;
+function updatePieces(dt,t){
+  spawnTimer-=dt;
+  const interval=Math.max(160, 620/speedNominal());
+  if(spawnTimer<=0 && pieces.length<22){ spawnPiece(); spawnTimer=interval*(.6+Math.random()*.8); }
+  for(let i=pieces.length-1;i>=0;i--){
+    const p=pieces[i];
+    p.x+=p.vx*dt*.06; p.y+=p.vy*dt*.06;
+    p.rot+=p.rv*dt*.06;
+    p.rot=Math.max(-.5,Math.min(.5,p.rot));
+    if(dirMode==='top') p.x+=Math.sin(t*.0015+p.sway)*.25;
+    const m=p.r*3;
+    if(p.x<-m||p.x>W+m||p.y<-m||p.y>H+m) pieces.splice(i,1);
+  }
+}
+function drawPiece(p,t){
+  const {x,y,r,rot,def}=p;
+  const pulse=.85+.15*Math.sin((t-p.born)*.004+p.sway);
+  ctx.save();
+  ctx.translate(x,y); ctx.rotate(rot);
+  ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.font=`${theme==='night'?500:600} ${r*1.5}px 'Hiragino Mincho ProN','Yu Mincho',serif`;
+  if(theme==='night'){
+    const col = def.red ? '#ff4d6d' : p.neon;
+    ctx.shadowColor=col; ctx.shadowBlur=26*pulse;
+    ctx.fillStyle=col; ctx.globalAlpha=.95;
+    ctx.fillText(def.k,0,0);
+    ctx.shadowBlur=8;
+    ctx.fillStyle='rgba(255,255,255,.85)';
+    ctx.globalAlpha=.5*pulse;
+    ctx.fillText(def.k,0,0);
+  }else{
+    ctx.fillStyle = def.red ? 'rgba(185,55,38,.92)' : 'rgba(28,26,23,.9)';
+    ctx.shadowColor = def.red ? 'rgba(185,55,38,.3)' : 'rgba(28,26,23,.25)';
+    ctx.shadowBlur=3;
+    ctx.fillText(def.k,0,0);
+  }
+  ctx.restore();
+  ctx.globalAlpha=1;
+}
+
+/* ================= fireworks(夜空)— リアル物理 =================
+   本物の打ち上げ花火のように、爆風で飛び散った火の粉が
+   空気抵抗で失速し、重力でしだれ落ち、燃え尽きぎわに瞬く。
+   利き筋の方向へ飛ばすことで駒の動きを花火の「開き方」で表現する。 */
+const parts=[];
+const popRings=[];
+const G = 320;         // 重力(px/s^2)基準
+const AIR = 1.9;       // 空気抵抗係数
+function hexToRgb(h){
+  const n=parseInt(h.slice(1),16);
+  return [(n>>16)&255,(n>>8)&255,n&255];
+}
+function launchFirework(p){
+  const {x,y,rot,def,r}=p;
+  const cell=r*2.1;
+  const cos=Math.cos(rot), sin=Math.sin(rot);
+  const ro=(dx,dy)=>({x:dx*cos-dy*sin, y:dx*sin+dy*cos});
+  const col = def.red ? '#ff4d6d' : p.neon;
+  const rgb = def.red ? [255,90,110] : hexToRgb(p.neon);
+
+  if(theme==='sumi'){
+    inkDrop(p,ro,cell);
+    soundSumi(false);
+    return;
+  }
+
+  const S = Math.min(W,H)/900;     // 画面サイズ正規化
+  const B = 1.5;                    // 開く瞬間の大きさ倍率
+  for(const mv of def.m){
+    const d=ro(mv.x,mv.y);
+    const len=Math.hypot(d.x,d.y); const ux=d.x/len, uy=d.y/len;
+    if(mv.s){ // 走り:速い火の玉がまっすぐ伸び、失速してしだれる(柳)
+      const n=18;
+      for(let i=0;i<n;i++){
+        const power=(220+i*26)*(.92+Math.random()*.16)*S*B;
+        const jit=(Math.random()-.5)*.10;
+        const c=Math.cos(jit), s2=Math.sin(jit);
+        const q=mkPart(x,y,(ux*c-uy*s2)*power,(ux*s2+uy*c)*power,rgb,'trail');
+        q.life=2.6+Math.random()*1.4;
+        q.sz=2.6+Math.random()*1.4;
+        q.drip=Math.random()<.5;      // 途中で火の粉をこぼす
+        parts.push(q);
+      }
+    }else if(mv.j){ // 桂馬:跳ね上がって横へ流れる
+      for(let i=0;i<13;i++){
+        const power=(260+Math.random()*90)*S*B;
+        const fw=ro(0,-1);
+        const q=mkPart(x,y,fw.x*power,fw.y*power,rgb,'trail');
+        const side=ro(mv.x,0);
+        q.ax=side.x*260*S*B; q.ay=side.y*260*S*B;  // 横への推力
+        q.life=2.4+Math.random()*.8;
+        q.sz=2.6+Math.random();
+        q.drip=Math.random()<.4;
+        parts.push(q);
+      }
+    }else{ // 一歩:その方向へ丸く開く花弁
+      for(let i=0;i<12;i++){
+        const jit=(Math.random()-.5)*.6;
+        const c=Math.cos(jit), s2=Math.sin(jit);
+        const power=(150+Math.random()*140)*S*B;
+        const q=mkPart(x,y,(ux*c-uy*s2)*power,(ux*s2+uy*c)*power,rgb,'trail');
+        q.life=1.8+Math.random()*.9;
+        q.sz=2.4+Math.random()*1.2;
+        parts.push(q);
+      }
+    }
+  }
+  // 芯の閃光(パッと開く瞬間の光球)
+  for(let i=0;i<26;i++){
+    const a=Math.random()*Math.PI*2, sp=(40+Math.random()*140)*S*B;
+    const q=mkPart(x,y,Math.cos(a)*sp,Math.sin(a)*sp,[255,240,210],'spark');
+    q.life=.5+Math.random()*.4; q.sz=1.6+Math.random()*1.4;
+    parts.push(q);
+  }
+  popRings.push({x,y,t:0,col});
+  soundNight();
+}
+function mkPart(x,y,vx,vy,rgb,kind){
+  return {x,y,px:x,py:y,vx,vy,ax:0,ay:0,rgb,kind,
+          life:1.6,age:0,sz:3,spl:Math.random(),drip:false,
+          twk:.7+Math.random()*.6};   // 瞬きの位相
+}
+function updateFireworks(dt){
+  const s=dt*.001;                    // 秒
+  for(let i=popRings.length-1;i>=0;i--){
+    popRings[i].t+=s;
+    if(popRings[i].t>.55) popRings.splice(i,1);
+  }
+  for(let i=parts.length-1;i>=0;i--){
+    const q=parts[i];
+    q.px=q.x; q.py=q.y;
+    // 横推力(桂馬など)は前半だけ効かせる
+    if(q.age<.5){ q.vx+=q.ax*s; q.vy+=q.ay*s; }
+    // 空気抵抗:速度に比例して失速(火の粉が急に止まる本物の挙動)
+    const drag=Math.exp(-AIR*s);
+    q.vx*=drag; q.vy*=drag;
+    // 重力:失速したあと下へしだれる
+    const gscale = q.kind==='spark' ? .3 : 1;
+    q.vy += G*gscale*s;
+    q.x+=q.vx*s; q.y+=q.vy*s;
+    q.age+=s;
+    // 燃えかすを落とす(柳のしたたり)
+    if(q.drip && q.kind==='trail' && q.age>.4 && Math.random()<dt*.004){
+      const e=mkPart(q.x,q.y,q.vx*.1+(Math.random()-.5)*20,q.vy*.1,q.rgb,'ember');
+      e.life=.6+Math.random()*.5; e.sz=1.2+Math.random(); e.spl=q.spl;
+      parts.push(e);
+    }
+    if(q.age>q.life) parts.splice(i,1);
+  }
+}
+// トレイル層へ火の粉を焼き付ける(光跡)+ 明るい頭を描く
+function drawFireworks(advance){
+  // 1) 前フレームの光跡をゆっくり減衰(残像)— 停止中は保持
+  if(advance){
+    trail.save();
+    trail.setTransform(1,0,0,1,0,0);
+    trail.globalCompositeOperation='destination-out';
+    trail.fillStyle='rgba(0,0,0,0.14)';
+    trail.fillRect(0,0,trailCv.width,trailCv.height);
+    trail.restore();
+  }
+
+  // 2) 火の粉を光跡として trail に加算(停止中は焼き付けない)
+  if(advance){
+    trail.globalCompositeOperation='lighter';
+    trail.lineCap='round';
+    for(const q of parts){
+      const lifeF=Math.max(0,1-q.age/q.life);
+      const [r,g,b]=q.rgb;
+      // 燃え尽きぎわの瞬き
+      const flick = q.age>q.life*.55 ? (.55+.45*Math.sin(q.age*34*q.twk+q.spl*30)) : 1;
+      const a=lifeF*flick;
+      if(a<=0) continue;
+      trail.globalAlpha=a*.9;
+      trail.strokeStyle=`rgb(${r},${g},${b})`;
+      trail.lineWidth=Math.max(.8, q.sz*(.4+lifeF*.7));
+      trail.beginPath();
+      trail.moveTo(q.px,q.py); trail.lineTo(q.x,q.y);
+      if(Math.hypot(q.x-q.px,q.y-q.py)<.6) trail.arc(q.x,q.y,trail.lineWidth*.5,0,7);
+      trail.stroke();
+    }
+    trail.globalAlpha=1;
+    trail.globalCompositeOperation='source-over';
+  }
+
+  // 3) trail層を本画面へ加算合成
+  ctx.globalCompositeOperation='lighter';
+  ctx.drawImage(trailCv,0,0,W,H);
+
+  // 4) 開いた瞬間の閃光リングと、明るい火の粉の頭(グロー付き)
+  for(const g of popRings){
+    const pr=g.t/.55, rad=6+pr*90;
+    ctx.globalAlpha=(1-pr)*(1-pr)*.7;
+    ctx.lineWidth=5*(1-pr);
+    ctx.strokeStyle=g.col;
+    ctx.shadowColor=g.col;ctx.shadowBlur=22;
+    ctx.beginPath();ctx.arc(g.x,g.y,rad,0,7);ctx.stroke();
+    ctx.shadowBlur=0;
+  }
+  for(const q of parts){
+    const lifeF=Math.max(0,1-q.age/q.life);
+    const flick = q.age>q.life*.55 ? (.5+.5*Math.sin(q.age*34*q.twk+q.spl*30)) : 1;
+    const a=lifeF*flick;
+    if(a<=0) continue;
+    const [r,g,b]=q.rgb;
+    ctx.globalAlpha=a;
+    ctx.fillStyle=`rgb(${r},${g},${b})`;
+    ctx.shadowColor=`rgb(${r},${g},${b})`;
+    ctx.shadowBlur=10;
+    const hr=Math.max(.8, q.sz*(.5+lifeF*.7));
+    ctx.beginPath();ctx.arc(q.x,q.y,hr,0,7);ctx.fill();
+    // 白熱コア
+    if(lifeF>.4 && q.kind!=='ember'){
+      ctx.globalAlpha=a*.9;
+      ctx.fillStyle='rgba(255,255,245,.95)';
+      ctx.shadowBlur=4;
+      ctx.beginPath();ctx.arc(q.x,q.y,hr*.45,0,7);ctx.fill();
+    }
+  }
+  ctx.shadowBlur=0;
+  ctx.globalAlpha=1;
+  ctx.globalCompositeOperation='source-over';
+}
+function clearTrail(){ trail.clearRect(0,0,W,H); }
+
+/* ================= 追い打ち(火の粉に触れて再炸裂) =================
+   飛んでいる火の粉に指が触れると、そこで白熱ゴールドの花火が
+   「そこそこ」広がる。連鎖させて画面を育てられる。 */
+let chaseReadyAt=0;
+function chaseBurst(x,y){
+  const S=Math.min(W,H)/900;
+  for(let i=0;i<18;i++){
+    const a=Math.random()*Math.PI*2;
+    const power=(150+Math.random()*160)*S;      // しっかり:そこそこ広がる
+    const w=Math.random();
+    const rgb=[255, 205+(w*50|0), 110+(w*130|0)]; // 金〜白
+    const q=mkPart(x,y,Math.cos(a)*power,Math.sin(a)*power,rgb,'trail');
+    q.life=1.1+Math.random()*.8;
+    q.sz=2+Math.random()*1.3;
+    q.drip=Math.random()<.35;
+    parts.push(q);
+  }
+  for(let i=0;i<12;i++){
+    const a=Math.random()*Math.PI*2, sp=(40+Math.random()*100)*S;
+    const q=mkPart(x,y,Math.cos(a)*sp,Math.sin(a)*sp,[255,248,225],'spark');
+    q.life=.32+Math.random()*.3; q.sz=1.4+Math.random();
+    parts.push(q);
+  }
+  popRings.push({x,y,t:0,col:'#ffe6a0'});
+  soundChase();
+}
+function tryChase(x,y){
+  const now=performance.now();
+  if(now<chaseReadyAt) return false;
+  for(let i=0;i<parts.length;i++){
+    const q=parts[i];
+    if(q.kind==='spark') continue;               // 一瞬の閃光は対象外
+    if(Math.hypot(x-q.x,y-q.y) < 30){
+      chaseBurst(q.x,q.y);
+      parts.splice(i,1);                          // 触れた粉は炸裂に変わる
+      chaseReadyAt=now+65;                        // 連打しすぎ防止
+      return true;
+    }
+  }
+  return false;
+}
+
+/* ================= 線香花火(長押しで点灯) =================
+   牡丹→松葉→柳→散り、の移ろいを経て、最後に玉が落ちる。 */
+const senkos=[];
+const sparks=[];
+function lightSenko(x,y){
+  senkos.push({x,y,age:0,life:7.5+Math.random()*1.5,emit:0,dropped:false});
+  soundCrackle();
+}
+function emitSenko(s,dt){
+  const pr=s.age/s.life;
+  let rate, spd, fork;
+  if(pr<0.12){ rate=8;  spd=26; fork=0; }          // 牡丹:灯りはじめ
+  else if(pr<0.5){ rate=30; spd=78; fork=2; }      // 松葉:勢いよく爆ぜて枝分かれ
+  else if(pr<0.82){ rate=15; spd=52; fork=1; }     // 柳:数を減らし垂れる
+  else { rate=4;  spd=30; fork=0; }                // 散り:ぽつぽつ
+  s.emit += rate*dt*.001;
+  const S=Math.min(W,H)/900;
+  while(s.emit>=1){
+    s.emit-=1;
+    const ang=-Math.PI/2 + (Math.random()-.5)*Math.PI*1.7;
+    const v=spd*(.5+Math.random()*.7)*S;
+    const w=Math.random();
+    sparks.push({
+      x:s.x, y:s.y,
+      vx:Math.cos(ang)*v, vy:Math.sin(ang)*v,
+      px:s.x, py:s.y,
+      age:0, life:.5+Math.random()*.6,
+      sz:1+Math.random()*.9,
+      rgb:[255, 175+(w*55|0), 60+(w*90|0)],        // 金〜橙
+      fork: fork>0 ? (Math.random()<.6?fork:0) : 0,
+      forkAt:.12+Math.random()*.18,
+    });
+  }
+  // ときどき小さくパチッ
+  if(pr>0.12&&pr<0.6&&Math.random()<dt*.0016) soundCrackle();
+}
+function updateSenko(dt){
+  const s=dt*.001;
+  for(let i=senkos.length-1;i>=0;i--){
+    const sk=senkos[i];
+    sk.age+=s;
+    if(sk.age<sk.life){
+      emitSenko(sk,dt);
+    }else if(!sk.dropped){
+      // 玉が落ちる
+      sk.dropped=true;
+      const S=Math.min(W,H)/900;
+      sparks.push({x:sk.x,y:sk.y,vx:(Math.random()-.5)*10,vy:6*S,
+        px:sk.x,py:sk.y,age:0,life:1.1,sz:2.6,rgb:[255,200,120],fork:0,forkAt:0,drop:true});
+      senkos.splice(i,1);
+    }
+  }
+  // 火花の物理(重力で垂れる+松葉の枝分かれ)
+  for(let i=sparks.length-1;i>=0;i--){
+    const q=sparks[i];
+    q.px=q.x; q.py=q.y;
+    const drag=Math.exp(-2.2*s);
+    q.vx*=drag; q.vy*=drag;
+    q.vy += (q.drop?260:200)*s;
+    q.x+=q.vx*s; q.y+=q.vy*s;
+    q.age+=s;
+    if(q.fork>0 && q.age>q.life*q.forkAt){
+      const n=2+((Math.random()*2)|0);
+      for(let k=0;k<n;k++){
+        const a=Math.atan2(q.vy,q.vx)+(Math.random()-.5)*1.4;
+        const v=Math.hypot(q.vx,q.vy)*(.5+Math.random()*.4);
+        sparks.push({x:q.x,y:q.y,vx:Math.cos(a)*v,vy:Math.sin(a)*v,
+          px:q.x,py:q.y,age:0,life:.32+Math.random()*.34,
+          sz:q.sz*.8,rgb:q.rgb,fork:0,forkAt:0});
+      }
+      q.fork=0;
+      if(Math.random()<.25) soundCrackle();
+    }
+    if(q.age>q.life) sparks.splice(i,1);
+  }
+}
+function drawSenko(advance){
+  // 火花の光跡を trail に焼き付け
+  if(advance){
+    trail.globalCompositeOperation='lighter';
+    trail.lineCap='round';
+    for(const q of sparks){
+      const lifeF=Math.max(0,1-q.age/q.life);
+      if(lifeF<=0) continue;
+      const [r,g,b]=q.rgb;
+      trail.globalAlpha=lifeF*.85;
+      trail.strokeStyle=`rgb(${r},${g},${b})`;
+      trail.lineWidth=Math.max(.6,q.sz*lifeF);
+      trail.beginPath();trail.moveTo(q.px,q.py);trail.lineTo(q.x,q.y);trail.stroke();
+    }
+    trail.globalAlpha=1;
+    trail.globalCompositeOperation='source-over';
+  }
+  // 火花の頭
+  ctx.globalCompositeOperation='lighter';
+  for(const q of sparks){
+    const lifeF=Math.max(0,1-q.age/q.life);
+    if(lifeF<=0) continue;
+    const [r,g,b]=q.rgb;
+    ctx.globalAlpha=lifeF;
+    ctx.fillStyle=`rgb(${r},${g},${b})`;
+    ctx.shadowColor=`rgb(${r},${g},${b})`;ctx.shadowBlur=8;
+    ctx.beginPath();ctx.arc(q.x,q.y,Math.max(.6,q.sz*lifeF),0,7);ctx.fill();
+  }
+  // 火球(玉)本体:ちらちら明滅
+  for(const sk of senkos){
+    const pr=sk.age/sk.life;
+    const flick=.6+.4*Math.sin(sk.age*40+sk.x);
+    const rad=(pr<.12? 3+pr/.12*4 : 6*(1-pr*.5))*flick;
+    ctx.globalAlpha=Math.min(1,(1-pr*.6))*flick;
+    ctx.fillStyle='rgb(255,214,150)';
+    ctx.shadowColor='rgb(255,180,90)';ctx.shadowBlur=20;
+    ctx.beginPath();ctx.arc(sk.x,sk.y,Math.max(1.5,rad),0,7);ctx.fill();
+    ctx.fillStyle='rgba(255,250,235,.9)';
+    ctx.shadowBlur=6;
+    ctx.beginPath();ctx.arc(sk.x,sk.y,Math.max(.8,rad*.45),0,7);ctx.fill();
+  }
+  ctx.shadowBlur=0;ctx.globalAlpha=1;
+  ctx.globalCompositeOperation='source-over';
+}
+function clearSenko(){ senkos.length=0; sparks.length=0; }
+
+/* ================= 墨流し:Stable Fluids(WebGL2) =================
+   参考画像と同じ「流体シミュレーション」で墨が水に溶けて流れる。 */
+let fluid=null;
+function initFluid(){
+  const gl = glCanvas.getContext('webgl2',{alpha:false,depth:false,stencil:false,antialias:false});
+  if(!gl) throw new Error('no webgl2');
+  if(!gl.getExtension('EXT_color_buffer_float')) throw new Error('no float buffers');
+
+  const VERT=`
+    precision highp float;
+    attribute vec2 aPosition;
+    varying vec2 vUv; varying vec2 vL; varying vec2 vR; varying vec2 vT; varying vec2 vB;
+    uniform vec2 texelSize;
+    void main(){
+      vUv = aPosition*0.5+0.5;
+      vL = vUv - vec2(texelSize.x,0.0);
+      vR = vUv + vec2(texelSize.x,0.0);
+      vT = vUv + vec2(0.0,texelSize.y);
+      vB = vUv - vec2(0.0,texelSize.y);
+      gl_Position = vec4(aPosition,0.0,1.0);
+    }`;
+  const FRAG={
+    splat:`
+      precision highp float; precision highp sampler2D;
+      varying vec2 vUv;
+      uniform sampler2D uTarget; uniform float aspectRatio;
+      uniform vec3 color; uniform vec2 point; uniform float radius;
+      void main(){
+        vec2 p = vUv - point; p.x *= aspectRatio;
+        vec3 splat = exp(-dot(p,p)/radius) * color;
+        vec3 base = texture2D(uTarget, vUv).xyz;
+        gl_FragColor = vec4(base + splat, 1.0);
+      }`,
+    advection:`
+      precision highp float; precision highp sampler2D;
+      varying vec2 vUv;
+      uniform sampler2D uVelocity; uniform sampler2D uSource;
+      uniform vec2 texelSize; uniform float dt; uniform float dissipation;
+      void main(){
+        vec2 coord = vUv - dt * texture2D(uVelocity, vUv).xy * texelSize;
+        vec4 result = texture2D(uSource, coord);
+        float decay = 1.0 + dissipation * dt;
+        gl_FragColor = result / decay;
+      }`,
+    divergence:`
+      precision mediump float; precision mediump sampler2D;
+      varying vec2 vUv; varying vec2 vL; varying vec2 vR; varying vec2 vT; varying vec2 vB;
+      uniform sampler2D uVelocity;
+      void main(){
+        float L = texture2D(uVelocity, vL).x;
+        float R = texture2D(uVelocity, vR).x;
+        float T = texture2D(uVelocity, vT).y;
+        float B = texture2D(uVelocity, vB).y;
+        vec2 C = texture2D(uVelocity, vUv).xy;
+        if(vL.x < 0.0){ L = -C.x; }
+        if(vR.x > 1.0){ R = -C.x; }
+        if(vT.y > 1.0){ T = -C.y; }
+        if(vB.y < 0.0){ B = -C.y; }
+        float div = 0.5*(R - L + T - B);
+        gl_FragColor = vec4(div,0.0,0.0,1.0);
+      }`,
+    curl:`
+      precision mediump float; precision mediump sampler2D;
+      varying vec2 vUv; varying vec2 vL; varying vec2 vR; varying vec2 vT; varying vec2 vB;
+      uniform sampler2D uVelocity;
+      void main(){
+        float L = texture2D(uVelocity, vL).y;
+        float R = texture2D(uVelocity, vR).y;
+        float T = texture2D(uVelocity, vT).x;
+        float B = texture2D(uVelocity, vB).x;
+        float vorticity = R - L - T + B;
+        gl_FragColor = vec4(0.5*vorticity,0.0,0.0,1.0);
+      }`,
+    vorticity:`
+      precision highp float; precision highp sampler2D;
+      varying vec2 vUv; varying vec2 vL; varying vec2 vR; varying vec2 vT; varying vec2 vB;
+      uniform sampler2D uVelocity; uniform sampler2D uCurl;
+      uniform float curl; uniform float dt;
+      void main(){
+        float L = texture2D(uCurl, vL).x;
+        float R = texture2D(uCurl, vR).x;
+        float T = texture2D(uCurl, vT).x;
+        float B = texture2D(uCurl, vB).x;
+        float C = texture2D(uCurl, vUv).x;
+        vec2 force = 0.5*vec2(abs(T)-abs(B), abs(R)-abs(L));
+        force /= length(force)+0.0001;
+        force *= curl * C;
+        force.y *= -1.0;
+        vec2 velocity = texture2D(uVelocity, vUv).xy;
+        velocity += force * dt;
+        velocity = min(max(velocity, -1000.0), 1000.0);
+        gl_FragColor = vec4(velocity,0.0,1.0);
+      }`,
+    pressure:`
+      precision mediump float; precision mediump sampler2D;
+      varying vec2 vUv; varying vec2 vL; varying vec2 vR; varying vec2 vT; varying vec2 vB;
+      uniform sampler2D uPressure; uniform sampler2D uDivergence;
+      void main(){
+        float L = texture2D(uPressure, vL).x;
+        float R = texture2D(uPressure, vR).x;
+        float T = texture2D(uPressure, vT).x;
+        float B = texture2D(uPressure, vB).x;
+        float divergence = texture2D(uDivergence, vUv).x;
+        float pressure = (L + R + B + T - divergence) * 0.25;
+        gl_FragColor = vec4(pressure,0.0,0.0,1.0);
+      }`,
+    gradient:`
+      precision mediump float; precision mediump sampler2D;
+      varying vec2 vUv; varying vec2 vL; varying vec2 vR; varying vec2 vT; varying vec2 vB;
+      uniform sampler2D uPressure; uniform sampler2D uVelocity;
+      void main(){
+        float L = texture2D(uPressure, vL).x;
+        float R = texture2D(uPressure, vR).x;
+        float T = texture2D(uPressure, vT).x;
+        float B = texture2D(uPressure, vB).x;
+        vec2 velocity = texture2D(uVelocity, vUv).xy;
+        velocity.xy -= vec2(R - L, T - B);
+        gl_FragColor = vec4(velocity,0.0,1.0);
+      }`,
+    clear:`
+      precision mediump float; precision mediump sampler2D;
+      varying vec2 vUv;
+      uniform sampler2D uTexture; uniform float value;
+      void main(){
+        gl_FragColor = value * texture2D(uTexture, vUv);
+      }`,
+    display:`
+      precision highp float; precision highp sampler2D;
+      varying vec2 vUv;
+      uniform sampler2D uDye;
+      void main(){
+        vec3 d = texture2D(uDye, vUv).rgb;
+        vec3 paper = vec3(0.946, 0.949, 0.926);
+        // 白場を守るカーブ:うすい靄は紙色へすっと消し、
+        // 濃い墨だけをしっかり黒く残す(濁り防止)
+        float m = max(d.r, max(d.g, d.b));
+        float keep = smoothstep(0.035, 0.5, m);
+        vec3 dd = d * keep;
+        dd = dd * (1.0 + 0.6*smoothstep(0.5, 1.4, m));   // 濃部をさらに締める
+        vec3 col = paper * exp(-dd * 1.9);
+        gl_FragColor = vec4(col, 1.0);
+      }`,
+  };
+
+  function compile(type,src){
+    const sh=gl.createShader(type);
+    gl.shaderSource(sh,src); gl.compileShader(sh);
+    if(!gl.getShaderParameter(sh,gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(sh));
+    return sh;
+  }
+  const vs=compile(gl.VERTEX_SHADER,VERT);
+  function program(fragSrc){
+    const pr=gl.createProgram();
+    gl.attachShader(pr,vs);
+    gl.attachShader(pr,compile(gl.FRAGMENT_SHADER,fragSrc));
+    gl.bindAttribLocation(pr,0,'aPosition');
+    gl.linkProgram(pr);
+    if(!gl.getProgramParameter(pr,gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(pr));
+    const uniforms={};
+    const n=gl.getProgramParameter(pr,gl.ACTIVE_UNIFORMS);
+    for(let i=0;i<n;i++){
+      const name=gl.getActiveUniform(pr,i).name;
+      uniforms[name]=gl.getUniformLocation(pr,name);
+    }
+    return {pr,uniforms,bind(){gl.useProgram(pr);}};
+  }
+  const P={};
+  for(const k in FRAG) P[k]=program(FRAG[k]);
+
+  const quad=gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER,quad);
+  gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([-1,-1,-1,1,1,-1,1,1]),gl.STATIC_DRAW);
+  gl.vertexAttribPointer(0,2,gl.FLOAT,false,0,0);
+  gl.enableVertexAttribArray(0);
+
+  function blit(target){
+    if(target==null){
+      gl.bindFramebuffer(gl.FRAMEBUFFER,null);
+      gl.viewport(0,0,gl.drawingBufferWidth,gl.drawingBufferHeight);
+    }else{
+      gl.bindFramebuffer(gl.FRAMEBUFFER,target.fbo);
+      gl.viewport(0,0,target.width,target.height);
+    }
+    gl.drawArrays(gl.TRIANGLE_STRIP,0,4);
+  }
+  function createFBO(w,h,internalFormat,format,type,filter){
+    const texture=gl.createTexture();
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D,texture);
+    gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,filter);
+    gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,filter);
+    gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
+    gl.texImage2D(gl.TEXTURE_2D,0,internalFormat,w,h,0,format,type,null);
+    const fbo=gl.createFramebuffer();
+    gl.bindFramebuffer(gl.FRAMEBUFFER,fbo);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER,gl.COLOR_ATTACHMENT0,gl.TEXTURE_2D,texture,0);
+    if(gl.checkFramebufferStatus(gl.FRAMEBUFFER)!==gl.FRAMEBUFFER_COMPLETE) throw new Error('fbo incomplete');
+    gl.viewport(0,0,w,h);
+    gl.clearColor(0,0,0,1);
+    gl.clear(gl.COLOR_BUFFER_BIT);
+    return {texture,fbo,width:w,height:h,
+      texelSizeX:1/w,texelSizeY:1/h,
+      attach(id){gl.activeTexture(gl.TEXTURE0+id);gl.bindTexture(gl.TEXTURE_2D,this.texture);return id;}};
+  }
+  function createDoubleFBO(w,h,i,f,t,filter){
+    let fbo1=createFBO(w,h,i,f,t,filter);
+    let fbo2=createFBO(w,h,i,f,t,filter);
+    return {
+      width:w,height:h,texelSizeX:1/w,texelSizeY:1/h,
+      get read(){return fbo1;}, get write(){return fbo2;},
+      swap(){const tmp=fbo1;fbo1=fbo2;fbo2=tmp;},
+    };
+  }
+  function getResolution(base){
+    let aspect=gl.drawingBufferWidth/gl.drawingBufferHeight;
+    if(aspect<1) aspect=1/aspect;
+    const mn=Math.round(base), mx=Math.round(base*aspect);
+    return gl.drawingBufferWidth>gl.drawingBufferHeight ? {w:mx,h:mn} : {w:mn,h:mx};
+  }
+
+  const HF=gl.HALF_FLOAT;
+  let velocity,dye,divergence,curlFBO,pressure;
+  function buildFBOs(){
+    const sim=getResolution(110), dyeRes=getResolution(560);
+    velocity  =createDoubleFBO(sim.w,sim.h, gl.RG16F, gl.RG, HF, gl.LINEAR);
+    dye       =createDoubleFBO(dyeRes.w,dyeRes.h, gl.RGBA16F, gl.RGBA, HF, gl.LINEAR);
+    divergence=createFBO(sim.w,sim.h, gl.R16F, gl.RED, HF, gl.NEAREST);
+    curlFBO   =createFBO(sim.w,sim.h, gl.R16F, gl.RED, HF, gl.NEAREST);
+    pressure  =createDoubleFBO(sim.w,sim.h, gl.R16F, gl.RED, HF, gl.NEAREST);
+  }
+  buildFBOs();
+
+  const CURL=28, PRESSURE=0.8, PRESSURE_ITER=20;
+  const VEL_DISS=0.25, DYE_DISS=0.12;
+  // 自動浄化:画面に漂う墨の総量(推定)。多いほど水が墨を早く溶かす
+  let inkLevel=0;
+  function smooth01(a,b,x){ const t=Math.min(1,Math.max(0,(x-a)/(b-a))); return t*t*(3-2*t); }
+  function dyeDiss(){ return DYE_DISS + 0.75*smooth01(8, 26, inkLevel); }
+
+  function step(dt){
+    inkLevel*=Math.exp(-dyeDiss()*dt);
+    gl.disable(gl.BLEND);
+    // 渦度(墨がカールする力)
+    P.curl.bind();
+    gl.uniform2f(P.curl.uniforms.texelSize,velocity.texelSizeX,velocity.texelSizeY);
+    gl.uniform1i(P.curl.uniforms.uVelocity,velocity.read.attach(0));
+    blit(curlFBO);
+
+    P.vorticity.bind();
+    gl.uniform2f(P.vorticity.uniforms.texelSize,velocity.texelSizeX,velocity.texelSizeY);
+    gl.uniform1i(P.vorticity.uniforms.uVelocity,velocity.read.attach(0));
+    gl.uniform1i(P.vorticity.uniforms.uCurl,curlFBO.attach(1));
+    gl.uniform1f(P.vorticity.uniforms.curl,CURL);
+    gl.uniform1f(P.vorticity.uniforms.dt,dt);
+    blit(velocity.write); velocity.swap();
+
+    P.divergence.bind();
+    gl.uniform2f(P.divergence.uniforms.texelSize,velocity.texelSizeX,velocity.texelSizeY);
+    gl.uniform1i(P.divergence.uniforms.uVelocity,velocity.read.attach(0));
+    blit(divergence);
+
+    P.clear.bind();
+    gl.uniform2f(P.clear.uniforms.texelSize,velocity.texelSizeX,velocity.texelSizeY);
+    gl.uniform1i(P.clear.uniforms.uTexture,pressure.read.attach(0));
+    gl.uniform1f(P.clear.uniforms.value,PRESSURE);
+    blit(pressure.write); pressure.swap();
+
+    P.pressure.bind();
+    gl.uniform2f(P.pressure.uniforms.texelSize,velocity.texelSizeX,velocity.texelSizeY);
+    gl.uniform1i(P.pressure.uniforms.uDivergence,divergence.attach(0));
+    for(let i=0;i<PRESSURE_ITER;i++){
+      gl.uniform1i(P.pressure.uniforms.uPressure,pressure.read.attach(1));
+      blit(pressure.write); pressure.swap();
+    }
+
+    P.gradient.bind();
+    gl.uniform2f(P.gradient.uniforms.texelSize,velocity.texelSizeX,velocity.texelSizeY);
+    gl.uniform1i(P.gradient.uniforms.uPressure,pressure.read.attach(0));
+    gl.uniform1i(P.gradient.uniforms.uVelocity,velocity.read.attach(1));
+    blit(velocity.write); velocity.swap();
+
+    P.advection.bind();
+    gl.uniform2f(P.advection.uniforms.texelSize,velocity.texelSizeX,velocity.texelSizeY);
+    gl.uniform1f(P.advection.uniforms.dt,dt);
+    gl.uniform1i(P.advection.uniforms.uVelocity,velocity.read.attach(0));
+    gl.uniform1i(P.advection.uniforms.uSource,velocity.read.attach(0));
+    gl.uniform1f(P.advection.uniforms.dissipation,VEL_DISS);
+    blit(velocity.write); velocity.swap();
+
+    gl.uniform1i(P.advection.uniforms.uVelocity,velocity.read.attach(0));
+    gl.uniform1i(P.advection.uniforms.uSource,dye.read.attach(1));
+    gl.uniform1f(P.advection.uniforms.dissipation,dyeDiss());
+    blit(dye.write); dye.swap();
+  }
+  function render(){
+    P.display.bind();
+    gl.uniform2f(P.display.uniforms.texelSize,1/gl.drawingBufferWidth,1/gl.drawingBufferHeight);
+    gl.uniform1i(P.display.uniforms.uDye,dye.read.attach(0));
+    blit(null);
+  }
+  function correctRadius(radius){
+    const aspect=gl.drawingBufferWidth/gl.drawingBufferHeight;
+    if(aspect>1) radius*=aspect;
+    return radius;
+  }
+  function splatVelocity(ux,uy,dx,dy,radius){
+    P.splat.bind();
+    gl.uniform2f(P.splat.uniforms.texelSize,velocity.texelSizeX,velocity.texelSizeY);
+    gl.uniform1i(P.splat.uniforms.uTarget,velocity.read.attach(0));
+    gl.uniform1f(P.splat.uniforms.aspectRatio,gl.drawingBufferWidth/gl.drawingBufferHeight);
+    gl.uniform2f(P.splat.uniforms.point,ux,uy);
+    gl.uniform3f(P.splat.uniforms.color,dx,dy,0);
+    gl.uniform1f(P.splat.uniforms.radius,correctRadius(radius));
+    blit(velocity.write); velocity.swap();
+  }
+  function splatDye(ux,uy,r,g,b,radius){
+    inkLevel += (r+g+b)/3 * (radius/.0035);   // 追加した墨を計上
+    P.splat.bind();
+    gl.uniform2f(P.splat.uniforms.texelSize,dye.texelSizeX,dye.texelSizeY);
+    gl.uniform1i(P.splat.uniforms.uTarget,dye.read.attach(0));
+    gl.uniform1f(P.splat.uniforms.aspectRatio,gl.drawingBufferWidth/gl.drawingBufferHeight);
+    gl.uniform2f(P.splat.uniforms.point,ux,uy);
+    gl.uniform3f(P.splat.uniforms.color,r,g,b);
+    gl.uniform1f(P.splat.uniforms.radius,correctRadius(radius));
+    blit(dye.write); dye.swap();
+  }
+  function reset(){
+    inkLevel=0;
+    P.clear.bind();
+    gl.uniform1f(P.clear.uniforms.value,0);
+    gl.uniform2f(P.clear.uniforms.texelSize,dye.texelSizeX,dye.texelSizeY);
+    gl.uniform1i(P.clear.uniforms.uTexture,dye.read.attach(0));
+    blit(dye.write); dye.swap();
+    gl.uniform1i(P.clear.uniforms.uTexture,velocity.read.attach(0));
+    blit(velocity.write); velocity.swap();
+  }
+  return {step,render,splatVelocity,splatDye,reset,resizeFBOs:buildFBOs};
+}
+try{ fluid=initFluid(); }catch(e){ fluid=null; console.warn('fluid init failed:',e); }
+
+/* --- 駒タップ:利き筋の方向に墨を押し流す --- */
+function inkDrop(p,ro,cell){
+  if(!fluid) return;
+  const {x,y,def}=p;
+  const ux0=x/W, uy0=1-y/H;
+  const [ir,ig,ib]=p.inkCol;
+  // 一滴の墨
+  fluid.splatDye(ux0,uy0, ir*.75, ig*.75, ib*.75, .0032);
+  fluid.splatDye(ux0,uy0, ir*.3, ig*.3, ib*.3, .009);
+  for(const mv of def.m){
+    const d=ro(mv.x,mv.y);
+    const len=Math.hypot(d.x,d.y);
+    const dx=d.x/len, dy=d.y/len;
+    const F = mv.s?420 : mv.j?300 : 180;
+    const reach = cell*(mv.s?2.6 : mv.j?2.0 : 1.2);
+    // 中心と道中に流れの一押し
+    fluid.splatVelocity(ux0,uy0, dx*F, -dy*F, .0035);
+    for(const fr of (mv.s?[.35,.7]:[.5])){
+      const px=(x+dx*reach*fr)/W, py=1-(y+dy*reach*fr)/H;
+      fluid.splatVelocity(px,py, dx*F*.6, -dy*F*.6, .003);
+      fluid.splatDye(px,py, ir*.16, ig*.16, ib*.16, .0016);
+    }
+  }
+}
+/* --- なぞって墨を流す --- */
+let dragging=false, lastPX=0, lastPY=0;
+function stir(x,y,px,py){
+  if(!fluid) return;
+  const dx=(x-px)/W*5500;
+  const dy=-(y-py)/H*5500;
+  fluid.splatVelocity(x/W,1-y/H, dx, dy, .0035);
+}
+/* --- 何もない水面:波紋+ひとかき --- */
+function pokeWater(x,y){
+  if(!fluid) return;
+  const a=Math.random()*Math.PI*2;
+  for(let i=0;i<4;i++){
+    const t=a+i*Math.PI/2;
+    const ox=Math.cos(t)*14, oy=Math.sin(t)*14;
+    fluid.splatVelocity((x+ox)/W,1-(y+oy)/H, -Math.sin(t)*160, -Math.cos(t)*160, .004);
+  }
+}
+
+/* ================= 水面の波紋(2D表示) ================= */
+const ripples=[];
+function addRipple(x,y){
+  ripples.push({x,y,t:0});
+  if(theme==='sumi'){
+    pokeWater(x,y);
+    soundSumi(true);
+  }
+}
+function updateRipples(dt){
+  for(let i=ripples.length-1;i>=0;i--){
+    ripples[i].t+=dt*.001;
+    if(ripples[i].t>1.6) ripples.splice(i,1);
+  }
+}
+function drawRipples(){
+  const night=theme==='night';
+  for(const r of ripples){
+    const pr=r.t/1.6;
+    for(let j=0;j<3;j++){
+      const rp=pr-j*.12;
+      if(rp<0) continue;
+      const rad=rp*130;
+      const a=Math.pow(1-rp,2)*(night?.3:.3)*(1-j*.3);
+      if(a<=0) continue;
+      ctx.globalAlpha=a;
+      ctx.lineWidth=1.6-j*.35;
+      ctx.strokeStyle=night?'rgba(170,220,255,1)':'rgba(90,100,95,1)';
+      ctx.beginPath();ctx.arc(r.x,r.y,rad,0,7);ctx.stroke();
+    }
+  }
+  ctx.globalAlpha=1;
+}
+
+/* ================= input ================= */
+let score=0;
+const scoreEl=document.getElementById('score');
+const hint=document.getElementById('hint');
+let hinted=false;
+window.addEventListener('pointerdown',()=>{ initAudio(); if(AC&&AC.state==='suspended')AC.resume(); },{passive:true});
+let pressX=0,pressY=0,pressMoved=false,pressHandled=false,senkoTimer=null,senkoLit=false;
+cv.addEventListener('pointerdown',e=>{
+  if(document.body.classList.contains('menuOpen')){
+    document.body.classList.remove('menuOpen');
+    return;
+  }
+  const x=e.clientX, y=e.clientY;
+  dragging=true; lastPX=x; lastPY=y;
+  pressX=x; pressY=y; pressMoved=false; pressHandled=false; senkoLit=false;
+  // 1) 駒に当たれば花火/墨
+  for(let i=pieces.length-1;i>=0;i--){
+    const p=pieces[i];
+    if(Math.hypot(x-p.x,y-p.y) < p.r*1.6){
+      launchFirework(p);
+      pieces.splice(i,1);
+      score++; scoreEl.textContent=score;
+      pressHandled=true;
+      if(!hinted){hinted=true;hint.classList.add('gone');}
+      break;
+    }
+  }
+  if(pressHandled) return;
+  // 2) 夜空:飛んでいる火の粉に触れたら追い打ち
+  if(theme==='night' && tryChase(x,y)){
+    pressHandled=true;
+    if(!hinted){hinted=true;hint.classList.add('gone');}
+    return;
+  }
+  // 3) 夜空:何もない所を長押しで線香花火
+  if(theme==='night'){
+    senkoTimer=setTimeout(()=>{
+      senkoTimer=null;
+      if(!pressMoved && !document.body.classList.contains('menuOpen')){
+        lightSenko(pressX,pressY); senkoLit=true;
+        if(!hinted){hinted=true;hint.classList.add('gone');}
+      }
+    }, 420);
+  }else{
+    // 水墨:その場で波紋(既存)
+    addRipple(x,y);
+  }
+});
+cv.addEventListener('pointermove',e=>{
+  if(!dragging) return;
+  const x=e.clientX, y=e.clientY;
+  if(!pressMoved && Math.hypot(x-pressX,y-pressY)>10){
+    pressMoved=true;
+    if(senkoTimer){ clearTimeout(senkoTimer); senkoTimer=null; }
+  }
+  if(theme==='sumi'){
+    if(Math.hypot(x-lastPX,y-lastPY)>2){
+      stir(x,y,lastPX,lastPY);
+      lastPX=x; lastPY=y;
+    }
+  }else{
+    // 夜空:なぞって火の粉を次々に追い打ち
+    if(Math.hypot(x-lastPX,y-lastPY)>2){
+      tryChase(x,y);
+      lastPX=x; lastPY=y;
+    }
+  }
+});
+function endPress(){
+  dragging=false;
+  if(senkoTimer){
+    clearTimeout(senkoTimer); senkoTimer=null;
+    // 長押しに至らなかった素早いタップ → 夜空でも波紋を出す
+    if(theme==='night' && !pressHandled && !pressMoved && !senkoLit){
+      addRipple(pressX,pressY);
+    }
+  }
+}
+window.addEventListener('pointerup',endPress);
+window.addEventListener('pointercancel',endPress);
+
+/* ================= main loop ================= */
+let last=performance.now();
+function loop(t){
+  const dtMs=Math.min(50, t-last); last=t;
+  const paused = document.body.classList.contains('menuOpen');
+  if(theme==='sumi'&&fluid){
+    if(!paused) fluid.step(Math.min(.033, dtMs/1000));
+    fluid.render();
+  }
+  drawBG(t);
+  if(!paused){
+    updatePieces(dtMs,t);
+    updateRipples(dtMs);
+  }
+  if(theme==='night'){
+    if(!paused){ updateFireworks(dtMs); updateSenko(dtMs); }
+    drawFireworks(!paused);
+    drawSenko(!paused);
+  }
+  drawRipples();
+  for(const p of pieces) drawPiece(p,t);
+  requestAnimationFrame(loop);
+}
+resize();
+for(let i=0;i<4;i++) setTimeout(spawnPiece, i*300);
+requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>
