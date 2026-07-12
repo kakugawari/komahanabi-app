@@ -85,6 +85,7 @@
   body.menuOpen .row:nth-child(2){transition-delay:.12s}
   body.menuOpen .row:nth-child(3){transition-delay:.19s}
   body.menuOpen .row:nth-child(4){transition-delay:.26s}
+  body.menuOpen .row:nth-child(5){transition-delay:.33s}
   .mlbl{
     font-size:10.5px;letter-spacing:.35em;padding-left:6px;
     color:rgba(230,245,255,.45);transition:color .8s;
@@ -172,6 +173,12 @@
       <button data-v="rand">乱</button>
     </div>
   </div>
+  <div class="row"><span class="mlbl">鑑賞</span>
+    <div class="seg" id="segAuto">
+      <button data-v="off" class="on">なし</button>
+      <button data-v="on">あり</button>
+    </div>
+  </div>
   <div class="row"><span class="mlbl">音</span>
     <div class="seg" id="segSnd">
       <button data-v="on" class="on">あり</button>
@@ -206,7 +213,7 @@ function resize(){
 window.addEventListener('resize',resize);
 
 /* ================= settings & menu ================= */
-let theme='night', dirMode='top', speedMode='1.7', soundOn=true;
+let theme='night', dirMode='top', speedMode='1.7', soundOn=true, autoOn=false;
 function wireSeg(id, fn){
   const seg=document.getElementById(id);
   seg.addEventListener('click',e=>{
@@ -218,11 +225,12 @@ function wireSeg(id, fn){
 wireSeg('segTheme',v=>{
   theme=v;document.body.classList.toggle('sumi',v==='sumi');
   if(v==='sumi'&&fluid) fluid.reset();
-  clearTrail(); clearSenko();
+  clearTrail(); clearSenko(); clearAuto();
 });
 wireSeg('segDir',v=>dirMode=v);
 wireSeg('segSpd',v=>speedMode=v);
 wireSeg('segSnd',v=>soundOn=(v==='on'));
+wireSeg('segAuto',v=>{autoOn=(v==='on'); autoTimer=600;});
 const titleBtn=document.getElementById('titleBtn');
 titleBtn.addEventListener('click',e=>{
   e.stopPropagation();
@@ -427,7 +435,7 @@ let spawnTimer=0;
 function updatePieces(dt,t){
   spawnTimer-=dt;
   const interval=Math.max(160, 620/speedNominal());
-  if(spawnTimer<=0 && pieces.length<22){ spawnPiece(); spawnTimer=interval*(.6+Math.random()*.8); }
+  if(spawnTimer<=0 && !autoOn && pieces.length<22){ spawnPiece(); spawnTimer=interval*(.6+Math.random()*.8); }
   for(let i=pieces.length-1;i>=0;i--){
     const p=pieces[i];
     p.x+=p.vx*dt*.06; p.y+=p.vy*dt*.06;
@@ -496,27 +504,40 @@ function launchFirework(p){
     const d=ro(mv.x,mv.y);
     const len=Math.hypot(d.x,d.y); const ux=d.x/len, uy=d.y/len;
     if(mv.s){ // 走り:速い火の玉がまっすぐ伸び、失速してしだれる(柳)
-      const n=18;
+      const solo = (def.k==='香');       // 香車:一本槍の大彗星として強調
+      const n = solo? 32 : 18;
+      const boost = solo? 1.35 : 1;
       for(let i=0;i<n;i++){
-        const power=(220+i*26)*(.92+Math.random()*.16)*S*B;
-        const jit=(Math.random()-.5)*.10;
+        const power=(220+i*(solo?18:26))*(.92+Math.random()*.16)*S*B*boost;
+        const jit=(Math.random()-.5)*(solo?.14:.10);
         const c=Math.cos(jit), s2=Math.sin(jit);
         const q=mkPart(x,y,(ux*c-uy*s2)*power,(ux*s2+uy*c)*power,rgb,'trail');
-        q.life=2.6+Math.random()*1.4;
-        q.sz=2.6+Math.random()*1.4;
-        q.drip=Math.random()<.5;      // 途中で火の粉をこぼす
+        q.life=(solo?3.0:2.6)+Math.random()*1.4;
+        q.sz=(solo?3.6:2.6)+Math.random()*1.4;
+        q.drip=Math.random()<(solo?.8:.5);   // 途中で火の粉をこぼす
         parts.push(q);
       }
-    }else if(mv.j){ // 桂馬:跳ね上がって横へ流れる
-      for(let i=0;i<13;i++){
-        const power=(260+Math.random()*90)*S*B;
+      if(solo){ // 槍の穂先:白熱の芯を重ねる
+        for(let i=0;i<10;i++){
+          const power=(300+i*40)*(.95+Math.random()*.1)*S*B*boost;
+          const q=mkPart(x,y,ux*power,uy*power,[255,250,235],'trail');
+          q.life=2.2+Math.random()*.8; q.sz=1.8+Math.random()*.8;
+          parts.push(q);
+        }
+      }
+    }else if(mv.j){ // 桂馬:高く跳ね上がり、空中でカクッと曲がる二段跳び
+      for(let i=0;i<20;i++){
+        const power=(300+Math.random()*110)*S*B;
         const fw=ro(0,-1);
         const q=mkPart(x,y,fw.x*power,fw.y*power,rgb,'trail');
+        q.life=2.6+Math.random()*.9;
+        q.sz=3.0+Math.random()*1.2;
+        q.drip=Math.random()<.5;
+        // 空中で横へキック(桂馬の「曲がり」)
+        q.turnAt=.26+Math.random()*.14;
         const side=ro(mv.x,0);
-        q.ax=side.x*260*S*B; q.ay=side.y*260*S*B;  // 横への推力
-        q.life=2.4+Math.random()*.8;
-        q.sz=2.6+Math.random();
-        q.drip=Math.random()<.4;
+        const kick=(280+Math.random()*140)*S*B;
+        q.kx=side.x*kick; q.ky=side.y*kick;
         parts.push(q);
       }
     }else{ // 一歩:その方向へ丸く開く花弁
@@ -557,6 +578,16 @@ function updateFireworks(dt){
     q.px=q.x; q.py=q.y;
     // 横推力(桂馬など)は前半だけ効かせる
     if(q.age<.5){ q.vx+=q.ax*s; q.vy+=q.ay*s; }
+    // 桂馬:空中でカクッと曲がる+曲がり角で小さく煌めく
+    if(q.kx!==undefined && !q.kicked && q.age>=q.turnAt){
+      q.kicked=true;
+      q.vx+=q.kx; q.vy+=q.ky;
+      for(let k2=0;k2<2;k2++){
+        const e=mkPart(q.x,q.y,(Math.random()-.5)*40,(Math.random()-.5)*40,[255,248,220],'spark');
+        e.life=.28+Math.random()*.15; e.sz=1.3;
+        parts.push(e);
+      }
+    }
     // 空気抵抗:速度に比例して失速(火の粉が急に止まる本物の挙動)
     const drag=Math.exp(-AIR*s);
     q.vx*=drag; q.vy*=drag;
@@ -812,6 +843,133 @@ function drawSenko(advance){
   ctx.globalCompositeOperation='source-over';
 }
 function clearSenko(){ senkos.length=0; sparks.length=0; }
+
+/* ================= 鑑賞モード =================
+   夜空:玉が下から尾を引いて昇り、ほどよい高さで開く。
+   水墨:静かな水面に、ときどき一滴の墨が「ぽちゃん」と落ちる。 */
+let autoTimer=900;
+const shells=[];   // 打ち上げ中の玉
+const drops=[];    // 落ちてくる墨の一滴
+function updateAuto(dt){
+  if(!autoOn) return;
+  autoTimer-=dt;
+  if(autoTimer<=0){
+    if(theme==='night') launchShell();
+    else spawnDrop();
+    autoTimer = theme==='night' ? 1700+Math.random()*2600 : 2400+Math.random()*3400;
+    if(Math.random()<.3) autoTimer*=.32;   // ときどき連発
+  }
+}
+/* --- 夜空:打ち上げ(駒そのものが昇っていく) --- */
+function launchShell(){
+  const x0=W*(.15+Math.random()*.7);
+  const base=Math.min(W,H);
+  shells.push({
+    x:x0, y:H+30, x0, y0:H+30,
+    ty:H*(.18+Math.random()*.34),          // 開く高さ
+    T:1150+Math.random()*550,              // 昇る時間(ms)
+    t:0,
+    sway:(Math.random()-.5)*W*.05,
+    col:NEON[(Math.random()*NEON.length)|0],
+    def:pickPiece(),
+    r:Math.max(30, Math.min(52, base*.065)),
+    rot:(Math.random()-.5)*.3,
+    rv:(Math.random()-.5)*.003,
+  });
+}
+function updateShells(dt){
+  for(let i=shells.length-1;i>=0;i--){
+    const s=shells[i];
+    s.t+=dt;
+    s.rot+=s.rv*dt;
+    const p=Math.min(1, s.t/s.T);
+    const ease=1-(1-p)*(1-p);              // だんだん減速しながら昇る
+    s.y=s.y0+(s.ty-s.y0)*ease;
+    s.x=s.x0+s.sway*p;
+    // 昇りの尾(小さな火の粉をこぼす)
+    if(Math.random()<dt*.06){
+      const e=mkPart(s.x,s.y+s.r*.6,(Math.random()-.5)*24, 30+Math.random()*40,[255,214,150],'ember');
+      e.life=.4+Math.random()*.3; e.sz=1+Math.random()*.8;
+      parts.push(e);
+    }
+    if(p>=1){
+      // 昇りきったところで、その駒の花火として開く
+      const fake={
+        def:s.def, x:s.x, y:s.y,
+        rot:s.rot, r:s.r, neon:s.col,
+      };
+      launchFirework(fake);
+      shells.splice(i,1);
+    }
+  }
+}
+function drawShells(){
+  // 昇っていく駒(光る文字)
+  for(const s of shells){
+    const fl=.8+.2*Math.sin(s.t*.02);
+    const col = s.def.red ? '#ff4d6d' : s.col;
+    ctx.save();
+    ctx.translate(s.x,s.y); ctx.rotate(s.rot);
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.font=`500 ${s.r*1.5}px 'Hiragino Mincho ProN','Yu Mincho',serif`;
+    ctx.shadowColor=col; ctx.shadowBlur=28*fl;
+    ctx.fillStyle=col; ctx.globalAlpha=.95;
+    ctx.fillText(s.def.k,0,0);
+    ctx.shadowBlur=8;
+    ctx.fillStyle='rgba(255,255,255,.9)';
+    ctx.globalAlpha=.55*fl;
+    ctx.fillText(s.def.k,0,0);
+    ctx.restore();
+  }
+  ctx.shadowBlur=0; ctx.globalAlpha=1;
+}
+/* --- 水墨:駒が一滴のように降ってきて、ぽちゃんと着水 --- */
+function spawnDrop(){
+  const base=Math.min(W,H);
+  const def=pickPiece();
+  drops.push({
+    x:W*(.15+Math.random()*.7),
+    y:-40, vy:90,
+    ty:H*(.2+Math.random()*.55),          // 着水する場所
+    def,
+    r:Math.max(30, Math.min(52, base*.065)),
+    rot:(Math.random()-.5)*.3,
+    rv:(Math.random()-.5)*.002,
+    inkCol: def.red ? INK_VERM : INK_BLACK,
+  });
+}
+function updateDrops(dt){
+  const s=dt*.001;
+  for(let i=drops.length-1;i>=0;i--){
+    const d=drops[i];
+    d.vy+=950*s;                           // 重力で加速
+    d.y+=d.vy*s;
+    d.rot+=d.rv*dt;
+    if(d.y>=d.ty){
+      // 着水:波紋+その駒の利き筋で墨が広がる(ぽちゃんはlaunchFireworkが鳴らす)
+      ripples.push({x:d.x,y:d.ty,t:0});
+      const fake={def:d.def, x:d.x, y:d.ty, rot:d.rot, r:d.r, inkCol:d.inkCol, neon:NEON[0]};
+      launchFirework(fake);
+      drops.splice(i,1);
+    }
+  }
+}
+function drawDrops(){
+  // 降ってくる駒(墨の文字)
+  for(const d of drops){
+    ctx.save();
+    ctx.translate(d.x,d.y); ctx.rotate(d.rot);
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.font=`600 ${d.r*1.5}px 'Hiragino Mincho ProN','Yu Mincho',serif`;
+    ctx.fillStyle = d.def.red ? 'rgba(185,55,38,.92)' : 'rgba(28,26,23,.9)';
+    ctx.shadowColor = d.def.red ? 'rgba(185,55,38,.3)' : 'rgba(28,26,23,.25)';
+    ctx.shadowBlur=3;
+    ctx.fillText(d.def.k,0,0);
+    ctx.restore();
+  }
+  ctx.shadowBlur=0;
+}
+function clearAuto(){ shells.length=0; drops.length=0; }
 
 /* ================= 墨流し:Stable Fluids(WebGL2) =================
    参考画像と同じ「流体シミュレーション」で墨が水に溶けて流れる。 */
@@ -1325,11 +1483,17 @@ function loop(t){
   if(!paused){
     updatePieces(dtMs,t);
     updateRipples(dtMs);
+    updateAuto(dtMs);
+    if(theme==='night') updateShells(dtMs);
+    else updateDrops(dtMs);
   }
   if(theme==='night'){
     if(!paused){ updateFireworks(dtMs); updateSenko(dtMs); }
     drawFireworks(!paused);
     drawSenko(!paused);
+    drawShells();
+  }else{
+    drawDrops();
   }
   drawRipples();
   for(const p of pieces) drawPiece(p,t);
