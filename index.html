@@ -86,6 +86,7 @@
   body.menuOpen .row:nth-child(3){transition-delay:.19s}
   body.menuOpen .row:nth-child(4){transition-delay:.26s}
   body.menuOpen .row:nth-child(5){transition-delay:.33s}
+  body.menuOpen .row:nth-child(6){transition-delay:.40s}
   .mlbl{
     font-size:10.5px;letter-spacing:.35em;padding-left:6px;
     color:rgba(230,245,255,.45);transition:color .8s;
@@ -136,6 +137,75 @@
   }
   body.sumi #hint{color:rgba(28,26,23,.6);text-shadow:none;}
   #hint.gone{opacity:0;}
+
+  /* ===== おぼえ花火モード ===== */
+  #gWrap{position:fixed;inset:0;z-index:8;pointer-events:none;display:none;}
+  body.gameOn #gWrap{display:block;}
+  body.gameOn #hint{display:none;}
+  body.gameOn #count{display:none;}
+  /* 落款(回数印) */
+  #gSeal{
+    position:fixed;top:calc(16px + env(safe-area-inset-top));right:16px;z-index:9;
+    width:58px;height:58px;border:2px solid #e0503f;border-radius:5px;
+    display:none;flex-direction:column;align-items:center;justify-content:center;
+    transform:rotate(2.5deg);background:rgba(224,80,63,.14);
+    box-shadow:0 0 14px rgba(224,80,63,.3), inset 0 0 0 1px rgba(224,80,63,.2);
+    color:#ff8a70;pointer-events:none;
+  }
+  body.gameOn #gSeal{display:flex;}
+  #gSeal .n{font-size:26px;font-weight:700;line-height:1;}
+  #gSeal .l{font-size:9px;letter-spacing:.2em;margin-top:2px;}
+  #gMsg{
+    position:fixed;left:0;right:0;bottom:calc(26px + env(safe-area-inset-bottom));
+    text-align:center;z-index:9;pointer-events:none;
+    font-size:16px;letter-spacing:.28em;
+    color:rgba(220,240,255,.92);text-shadow:0 0 12px rgba(0,0,0,.6);
+    transition:color .6s;
+  }
+  body.sumi #gMsg{color:rgba(28,26,23,.8);text-shadow:none;}
+  /* オーバーレイ(スタート/ゲームオーバー) */
+  .g-ov{
+    position:fixed;inset:0;z-index:12;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    gap:24px;padding:28px;text-align:center;
+    background:rgba(5,7,20,.82);
+    backdrop-filter:blur(8px) saturate(1.2);-webkit-backdrop-filter:blur(8px) saturate(1.2);
+    transition:opacity .4s;
+  }
+  body.sumi .g-ov{background:rgba(238,240,233,.82);}
+  .g-ov.hidden{opacity:0;pointer-events:none;}
+  .g-ov h1{
+    font-size:clamp(34px,11vw,56px);letter-spacing:.3em;font-weight:600;
+    background:linear-gradient(#e9fbff,#9df3ff 45%,#c9a8ff);
+    -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;
+    filter:drop-shadow(0 0 18px rgba(140,220,255,.4));
+  }
+  body.sumi .g-ov h1{
+    background:linear-gradient(#3a3733,#1c1a17);
+    -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;
+    filter:none;
+  }
+  .g-ov p{
+    font-size:clamp(13px,3.8vw,16px);letter-spacing:.12em;line-height:2.1;
+    color:rgba(230,245,255,.85);
+  }
+  body.sumi .g-ov p{color:rgba(28,26,23,.75);}
+  .g-score{
+    border:2px solid #e0503f;color:#ff8a70;border-radius:6px;transform:rotate(-2deg);
+    padding:14px 24px;font-size:clamp(22px,7vw,30px);font-weight:700;letter-spacing:.06em;
+    background:rgba(224,80,63,.12);box-shadow:0 0 20px rgba(224,80,63,.3);
+  }
+  .g-btn{
+    font-family:inherit;font-size:clamp(16px,4.5vw,19px);letter-spacing:.36em;text-indent:.36em;
+    padding:13px 36px;border:none;border-radius:999px;cursor:pointer;
+    color:#0a1420;font-weight:600;
+    background:linear-gradient(135deg,#9df3ff,#c9a8ff);
+    box-shadow:0 0 18px rgba(140,220,255,.5);
+  }
+  body.sumi .g-btn{color:#eef0e9;background:linear-gradient(135deg,#3a3733,#1c1a17);box-shadow:0 2px 14px rgba(28,26,23,.4);}
+  .g-btn:active{transform:scale(.96);}
+  .g-best{font-size:12px;letter-spacing:.2em;color:rgba(230,245,255,.5);}
+  body.sumi .g-best{color:rgba(28,26,23,.5);}
 </style>
 </head>
 <body>
@@ -179,6 +249,12 @@
       <button data-v="on">あり</button>
     </div>
   </div>
+  <div class="row"><span class="mlbl">遊び</span>
+    <div class="seg" id="segGame">
+      <button data-v="off" class="on">花火</button>
+      <button data-v="on">おぼえ</button>
+    </div>
+  </div>
   <div class="row"><span class="mlbl">音</span>
     <div class="seg" id="segSnd">
       <button data-v="on" class="on">あり</button>
@@ -187,7 +263,22 @@
   </div>
 </div>
 
-<script>
+<!-- おぼえ花火モード -->
+<div id="gWrap"></div>
+<div id="gSeal"><div class="n">1</div><div class="l">かい</div></div>
+<div id="gMsg"></div>
+<div id="gStart" class="g-ov hidden">
+  <h1>おぼえ花火</h1>
+  <p>夜空の駒が じゅんばんに ひらくよ。<br>おなじ じゅんばんで 駒を たたこう。<br>1つずつ ふえていくよ。</p>
+  <button class="g-btn" id="gBtnStart">はじめる</button>
+  <div class="g-best" id="gBest"></div>
+</div>
+<div id="gOver" class="g-ov hidden">
+  <div class="g-score" id="gOverScore">0かい</div>
+  <p id="gOverMsg"></p>
+  <button class="g-btn" id="gBtnRetry">もういちど</button>
+  <div class="g-best" id="gBest2"></div>
+</div>
 (() => {
 "use strict";
 const cv = document.getElementById('cv');
@@ -214,6 +305,7 @@ window.addEventListener('resize',resize);
 
 /* ================= settings & menu ================= */
 let theme='night', dirMode='top', speedMode='1.7', soundOn=true, autoOn=false;
+let gameOn=false, gameSilent=false;
 function wireSeg(id, fn){
   const seg=document.getElementById(id);
   seg.addEventListener('click',e=>{
@@ -231,6 +323,7 @@ wireSeg('segDir',v=>dirMode=v);
 wireSeg('segSpd',v=>speedMode=v);
 wireSeg('segSnd',v=>soundOn=(v==='on'));
 wireSeg('segAuto',v=>{autoOn=(v==='on'); autoTimer=600;});
+wireSeg('segGame',v=>{ v==='on' ? enterGame() : exitGame(); });
 const titleBtn=document.getElementById('titleBtn');
 titleBtn.addEventListener('click',e=>{
   e.stopPropagation();
@@ -274,7 +367,7 @@ function noiseSrc(t0,dur){
 }
 /* 夜空:太鼓のドーン */
 function soundNight(){
-  if(!AC||!soundOn) return;
+  if(!AC||!soundOn||gameSilent) return;
   const t=AC.currentTime;
   const det=.94+Math.random()*.12;
   const o=AC.createOscillator(); o.type='sine';
@@ -291,7 +384,7 @@ function soundNight(){
 }
 /* 水墨:低く艶のある水滴 */
 function soundSumi(quiet){
-  if(!AC||!soundOn) return;
+  if(!AC||!soundOn||gameSilent) return;
   const t=AC.currentTime;
   const f0=(quiet?95:130)+Math.random()*(quiet?70:120);
   const vol=quiet?.5:1;
@@ -435,7 +528,7 @@ let spawnTimer=0;
 function updatePieces(dt,t){
   spawnTimer-=dt;
   const interval=Math.max(160, 620/speedNominal());
-  if(spawnTimer<=0 && !autoOn && pieces.length<22){ spawnPiece(); spawnTimer=interval*(.6+Math.random()*.8); }
+  if(spawnTimer<=0 && !autoOn && !gameOn && pieces.length<22){ spawnPiece(); spawnTimer=interval*(.6+Math.random()*.8); }
   for(let i=pieces.length-1;i>=0;i--){
     const p=pieces[i];
     p.x+=p.vx*dt*.06; p.y+=p.vy*dt*.06;
@@ -851,7 +944,7 @@ let autoTimer=900;
 const shells=[];   // 打ち上げ中の玉
 const drops=[];    // 落ちてくる墨の一滴
 function updateAuto(dt){
-  if(!autoOn) return;
+  if(!autoOn || gameOn) return;
   autoTimer-=dt;
   if(autoTimer<=0){
     if(theme==='night') launchShell();
@@ -1402,6 +1495,7 @@ cv.addEventListener('pointerdown',e=>{
     return;
   }
   const x=e.clientX, y=e.clientY;
+  if(gameOn){ initAudio(); if(AC&&AC.state==='suspended')AC.resume(); gTap(x,y); return; }
   dragging=true; lastPX=x; lastPY=y;
   pressX=x; pressY=y; pressMoved=false; pressHandled=false; senkoLit=false;
   // 1) 駒に当たれば花火/墨
@@ -1470,6 +1564,237 @@ function endPress(){
 window.addEventListener('pointerup',endPress);
 window.addEventListener('pointercancel',endPress);
 
+/* ================= おぼえ花火モード ================= */
+const G_PIECES = [
+  {k:'歩', hue:'#00f0ff', pitch:349.2},
+  {k:'香', hue:'#ffe93a', pitch:392.0},
+  {k:'桂', hue:'#8dff3a', pitch:440.0},
+  {k:'銀', hue:'#ff2fd6', pitch:523.3},
+  {k:'金', hue:'#b56bff', pitch:587.3},
+  {k:'飛', hue:'#ff6b3a', pitch:659.3},
+];
+// 各駒の利きは既存PIECES定義から借用(花火の形が駒ごとに変わる)
+function defFor(k){ return PIECES.find(p=>p.k===k) || PIECES[0]; }
+function gR(){ return Math.max(30, Math.min(52, Math.min(W,H)*.075)); }
+let gPieces=[];          // {def,k,hue,pitch,x,y(正規化),r,lit}
+let gSeq=[], gInput=0, gRound=0, gPhase='idle', gToken=0;
+let gBest=0;
+try{ gBest=parseInt(localStorage.getItem('koma-oboe-best')||'0',10)||0; }catch(e){}
+
+const gSealEl=document.getElementById('gSeal');
+const gMsgEl=document.getElementById('gMsg');
+function gSetMsg(t){ gMsgEl.textContent=t; }
+function gSetSeal(n){ gSealEl.querySelector('.n').textContent=n; }
+function gShowBest(){
+  const s = gBest>0 ? `さいこう ${gBest} かい` : '';
+  document.getElementById('gBest').textContent=s;
+  document.getElementById('gBest2').textContent=s;
+}
+
+function gLayout(){
+  const base=Math.min(W,H);
+  const r=Math.max(30, Math.min(52, base*.075));
+  const padX=r+14;
+  const top=r+Math.max(96,H*0.15);
+  const bot=H-(r+Math.max(80,H*0.12));
+  const loX=padX, hiX=W-padX, loY=top, hiY=Math.max(top+1,bot);
+  let gap=r*2.9;
+  let pts=[];
+  for(let att=0;att<14 && pts.length<G_PIECES.length;att++){
+    pts=[]; let guard=0;
+    while(pts.length<G_PIECES.length && guard++<3000){
+      const px=loX+Math.random()*(hiX-loX), py=loY+Math.random()*(hiY-loY);
+      let ok=true;
+      for(const q of pts){ if(Math.hypot(px-q.px,py-q.py)<gap){ok=false;break;} }
+      if(ok) pts.push({px,py});
+    }
+    if(pts.length<G_PIECES.length) gap*=0.86;
+  }
+  if(pts.length<G_PIECES.length){   // 保険:グリッド
+    pts=[]; const cols=2, rows=Math.ceil(G_PIECES.length/cols);
+    for(let k=0;k<G_PIECES.length;k++){
+      const cx=k%cols, cy=(k/cols)|0;
+      pts.push({px:loX+(hiX-loX)*(cx/(cols-1)), py:loY+(hiY-loY)*(rows===1?.5:cy/(rows-1))});
+    }
+  }
+  gPieces = G_PIECES.map((p,i)=>({
+    def:defFor(p.k), k:p.k, hue:p.hue, pitch:p.pitch,
+    x:pts[i].px/W, y:pts[i].py/H, r, lit:0,
+    inkCol: (p.k==='と'||p.k==='龍'||p.k==='馬') ? INK_VERM : INK_BLACK,
+    neon:p.hue,
+  }));
+}
+
+function gDraw(t){
+  if(!gameOn) return;
+  const R=gR();
+  for(const p of gPieces){
+    const x=p.x*W, y=p.y*H;
+    const lit = p.lit>0 ? Math.min(1,p.lit/300) : 0;
+    const sway=Math.sin(t*.0016+p.x*10)*3;
+    ctx.save();
+    ctx.translate(x,y+sway);
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    if(theme==='night'){
+      const sc=1+lit*0.34;
+      ctx.font=`500 ${R*1.5*sc}px 'Hiragino Mincho ProN','Yu Mincho',serif`;
+      const col = lit>0 ? '#ffffff' : p.hue;
+      ctx.shadowColor=p.hue; ctx.shadowBlur=(18+lit*46);
+      ctx.fillStyle=col; ctx.globalAlpha=.96;
+      ctx.fillText(p.k,0,0);
+      if(lit>0){ ctx.shadowBlur=10; ctx.fillStyle='rgba(255,255,255,.9)'; ctx.fillText(p.k,0,0); }
+    }else{
+      const sc=1+lit*0.3;
+      ctx.font=`600 ${R*1.5*sc}px 'Hiragino Mincho ProN','Yu Mincho',serif`;
+      const dark = lit>0 ? 'rgba(10,9,8,1)' : 'rgba(28,26,23,.9)';
+      ctx.shadowColor= lit>0 ? 'rgba(28,26,23,.5)' : 'rgba(28,26,23,.25)';
+      ctx.shadowBlur= 3+lit*8;
+      ctx.fillStyle=dark;
+      ctx.fillText(p.k,0,0);
+    }
+    ctx.restore();
+    ctx.globalAlpha=1; ctx.shadowBlur=0;
+  }
+}
+function gStepLit(dt){ for(const p of gPieces) if(p.lit>0) p.lit-=dt; }
+
+/* 駒がひらく:点灯+その駒の花火(既存グラフィック)+音程 */
+function gOpen(i){
+  const p=gPieces[i];
+  p.lit=460;
+  gameSilent=true;
+  launchFirework({def:p.def, x:p.x*W, y:p.y*H, rot:(Math.random()-.5)*.3, r:gR(), neon:p.neon, inkCol:p.inkCol});
+  gameSilent=false;
+  sfxTone(p.pitch);
+}
+/* 音程トーン(夜空=澄んだ鐘/水墨=水の一音)。太鼓とは別に鳴らす */
+function sfxTone(freq){
+  if(!AC||!soundOn) return;
+  const t=AC.currentTime;
+  if(theme==='night'){
+    const o=AC.createOscillator(); o.type='triangle';
+    o.frequency.setValueAtTime(freq,t);
+    env(o,t,.006,t+.55,.24,.5); o.start(t); o.stop(t+.6);
+    const o2=AC.createOscillator(); o2.type='sine';
+    o2.frequency.setValueAtTime(freq*2,t);
+    env(o2,t,.004,t+.3,.10,.4); o2.start(t); o2.stop(t+.32);
+    // 低い胴(ドンの気配だけ)
+    const lo=AC.createOscillator(); lo.type='sine';
+    lo.frequency.setValueAtTime(90,t); lo.frequency.exponentialRampToValueAtTime(45,t+.3);
+    env(lo,t,.006,t+.5,.3,.4); lo.start(t); lo.stop(t+.55);
+  }else{
+    // 水墨:音程のある水滴
+    const o=AC.createOscillator(); o.type='sine';
+    o.frequency.setValueAtTime(freq*.75,t+.012);
+    o.frequency.exponentialRampToValueAtTime(freq*1.5,t+.22);
+    env(o,t+.012,.016,t+.5,.34,1.0); o.start(t+.012); o.stop(t+.55);
+    const o2=AC.createOscillator(); o2.type='sine';
+    o2.frequency.setValueAtTime(freq*.5,t+.05);
+    env(o2,t+.05,.05,t+.7,.12,1.2); o2.start(t+.05); o2.stop(t+.75);
+  }
+}
+function sfxClap(){
+  if(!AC||!soundOn) return;
+  const t0=AC.currentTime;
+  for(const d of [0,.18]){
+    const n=noiseSrc(t0+d,.05);
+    const hp=AC.createBiquadFilter(); hp.type='highpass'; hp.frequency.value=2200;
+    n.connect(hp); env(hp,t0+d,.001,t0+d+.06,.32,.2);
+  }
+}
+function sfxMiss(){
+  if(!AC||!soundOn) return;
+  const t=AC.currentTime;
+  const o=AC.createOscillator(); o.type='sawtooth';
+  o.frequency.setValueAtTime(120,t); o.frequency.exponentialRampToValueAtTime(54,t+.5);
+  const lp=AC.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value=520;
+  o.connect(lp); env(lp,t,.006,t+.55,.28,.3); o.start(t); o.stop(t+.6);
+}
+
+const gSleep = ms => new Promise(r=>setTimeout(r,ms));
+async function gPlaySeq(){
+  const token=++gToken;
+  gPhase='show'; gSetMsg('みて おぼえてね');
+  await gSleep(750);
+  const gap=Math.max(520, 950-gRound*25);
+  for(const i of gSeq){
+    if(token!==gToken) return;
+    gOpen(i);
+    await gSleep(gap);
+    if(token!==gToken) return;
+  }
+  gPhase='input'; gInput=0; gSetMsg('おなじ じゅんばんで!');
+}
+async function gNextRound(){
+  gRound++; gSetSeal(gRound);
+  gSeq.push((Math.random()*G_PIECES.length)|0);
+  await gPlaySeq();
+}
+function gTap(x,y){
+  if(gPhase!=='input') return;
+  const R=gR();
+  let hit=-1;
+  for(let i=0;i<gPieces.length;i++){
+    const p=gPieces[i];
+    if(Math.hypot(x-p.x*W, y-p.y*H) < R*1.5){ hit=i; break; }
+  }
+  if(hit<0) return;
+  gOpen(hit);
+  if(hit===gSeq[gInput]){
+    gInput++;
+    if(gInput>=gSeq.length){
+      gPhase='wait'; gSetMsg('よくできました!');
+      setTimeout(sfxClap,600);
+      setTimeout(gNextRound,1400);
+    }
+  }else{
+    gGameOver();
+  }
+}
+function gGameOver(){
+  gPhase='idle'; gToken++;
+  sfxMiss();
+  const cleared=gRound-1;
+  if(cleared>gBest){ gBest=cleared; try{localStorage.setItem('koma-oboe-best',String(gBest));}catch(e){} }
+  gShowBest();
+  document.getElementById('gOverScore').textContent = cleared>0 ? `${cleared}かい せいこう` : 'ざんねん…';
+  document.getElementById('gOverMsg').textContent =
+    (cleared>=gBest && cleared>0) ? 'さいこう きろく!すごい!' :
+    cleared>=5 ? 'いい しょうぶ だったね' : 'つぎは きっと できるよ';
+  gSetMsg('');
+  setTimeout(()=>document.getElementById('gOver').classList.remove('hidden'),600);
+}
+function gStartGame(){
+  initAudio(); if(AC&&AC.state==='suspended')AC.resume();
+  document.getElementById('gStart').classList.add('hidden');
+  document.getElementById('gOver').classList.add('hidden');
+  gLayout();
+  gSeq=[]; gRound=0; gInput=0; gPhase='wait'; gToken++;
+  gSetMsg('');
+  setTimeout(gNextRound,550);
+}
+function enterGame(){
+  gameOn=true; document.body.classList.add('gameOn');
+  document.body.classList.remove('menuOpen');
+  // 場をリセット
+  pieces.length=0; clearTrail(); clearSenko(); clearAuto();
+  if(fluid) fluid.reset();
+  gLayout(); gShowBest();
+  gPhase='idle'; gSeq=[]; gRound=0;
+  gSetSeal(0);
+  document.getElementById('gOver').classList.add('hidden');
+  document.getElementById('gStart').classList.remove('hidden');
+}
+function exitGame(){
+  gameOn=false; document.body.classList.remove('gameOn');
+  gPhase='idle'; gToken++;
+  document.getElementById('gStart').classList.add('hidden');
+  document.getElementById('gOver').classList.add('hidden');
+  clearTrail(); clearSenko();
+}
+document.getElementById('gBtnStart').addEventListener('click',e=>{e.stopPropagation();gStartGame();});
+document.getElementById('gBtnRetry').addEventListener('click',e=>{e.stopPropagation();gStartGame();});
+
 /* ================= main loop ================= */
 let last=performance.now();
 function loop(t){
@@ -1484,16 +1809,18 @@ function loop(t){
     updatePieces(dtMs,t);
     updateRipples(dtMs);
     updateAuto(dtMs);
-    if(theme==='night') updateShells(dtMs);
-    else updateDrops(dtMs);
+    if(!gameOn){ if(theme==='night') updateShells(dtMs); else updateDrops(dtMs); }
+    if(gameOn) gStepLit(dtMs);
   }
   if(theme==='night'){
     if(!paused){ updateFireworks(dtMs); updateSenko(dtMs); }
+    if(gameOn) gDraw(t);
     drawFireworks(!paused);
     drawSenko(!paused);
-    drawShells();
+    if(!gameOn) drawShells();
   }else{
-    drawDrops();
+    if(gameOn) gDraw(t);
+    if(!gameOn) drawDrops();
   }
   drawRipples();
   for(const p of pieces) drawPiece(p,t);

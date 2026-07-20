@@ -1,5 +1,5 @@
 // 駒花火 サービスワーカー(オフライン対応)
-const CACHE = 'koma-hanabi-v2';
+const CACHE = 'koma-hanabi-v3';
 const ASSETS = [
   './',
   './index.html',
