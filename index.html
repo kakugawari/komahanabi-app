@@ -220,7 +220,7 @@
   <div id="count"><b id="score">0</b></div>
 </div>
 
-<div id="hint">駒にふれると その駒の動きが 花火になる<br>火の粉にふれると もう一度はじける<br>なにもない夜空を長押しすると 線香花火</div>
+<div id="hint">駒にふれると その駒の動きが 花火になる<br>火の粉にふれると もう一度はじける<br>なにもない夜空を長押しすると 線香花火<br>上の「敵陣」で開くと 駒が成って 大きく咲く</div>
 
 <div id="menu">
   <div class="row"><span class="mlbl">画風</span>
@@ -428,20 +428,33 @@ function soundCrackle(){
 /* ================= piece definitions ================= */
 const GOLD_M=[{x:0,y:-1},{x:-1,y:-1},{x:1,y:-1},{x:-1,y:0},{x:1,y:0},{x:0,y:1}];
 const PIECES=[
- {k:'歩', m:[{x:0,y:-1}], w:1},
- {k:'香', m:[{x:0,y:-1,s:1}], w:1},
- {k:'桂', m:[{x:-1,y:-2,j:1},{x:1,y:-2,j:1}], w:1},
- {k:'銀', m:[{x:0,y:-1},{x:-1,y:-1},{x:1,y:-1},{x:-1,y:1},{x:1,y:1}], w:1},
+ {k:'歩', m:[{x:0,y:-1}], w:1, pro:'と'},
+ {k:'香', m:[{x:0,y:-1,s:1}], w:1, pro:'杏'},
+ {k:'桂', m:[{x:-1,y:-2,j:1},{x:1,y:-2,j:1}], w:1, pro:'圭'},
+ {k:'銀', m:[{x:0,y:-1},{x:-1,y:-1},{x:1,y:-1},{x:-1,y:1},{x:1,y:1}], w:1, pro:'全'},
  {k:'金', m:GOLD_M, w:1},
  {k:'と', m:GOLD_M, w:.7, red:1},
- {k:'角', m:[{x:-1,y:-1,s:1},{x:1,y:-1,s:1},{x:-1,y:1,s:1},{x:1,y:1,s:1}], w:1},
- {k:'飛', m:[{x:0,y:-1,s:1},{x:0,y:1,s:1},{x:-1,y:0,s:1},{x:1,y:0,s:1}], w:1},
+ {k:'角', m:[{x:-1,y:-1,s:1},{x:1,y:-1,s:1},{x:-1,y:1,s:1},{x:1,y:1,s:1}], w:1, pro:'馬'},
+ {k:'飛', m:[{x:0,y:-1,s:1},{x:0,y:1,s:1},{x:-1,y:0,s:1},{x:1,y:0,s:1}], w:1, pro:'龍'},
  {k:'玉', m:[{x:0,y:-1},{x:-1,y:-1},{x:1,y:-1},{x:-1,y:0},{x:1,y:0},{x:0,y:1},{x:-1,y:1},{x:1,y:1}], w:.8},
  {k:'龍', m:[{x:0,y:-1,s:1},{x:0,y:1,s:1},{x:-1,y:0,s:1},{x:1,y:0,s:1},
              {x:-1,y:-1},{x:1,y:-1},{x:-1,y:1},{x:1,y:1}], w:1, red:1},
  {k:'馬', m:[{x:-1,y:-1,s:1},{x:1,y:-1,s:1},{x:-1,y:1,s:1},{x:1,y:1,s:1},
              {x:0,y:-1},{x:0,y:1},{x:-1,y:0},{x:1,y:0}], w:1, red:1},
 ];
+/* 成り駒:敵陣(画面の上 1/3)で駒が成る。と・馬・龍は spawn もする既存の定義、
+   杏・圭・全は成駒としてだけ出てくる(金と同じ利き=GOLD_M) */
+const PRO_ONLY=[
+ {k:'杏', m:GOLD_M, red:1},
+ {k:'圭', m:GOLD_M, red:1},
+ {k:'全', m:GOLD_M, red:1},
+];
+function proDef(def){
+  if(!def.pro) return null;
+  return PIECES.find(p=>p.k===def.pro) || PRO_ONLY.find(p=>p.k===def.pro) || null;
+}
+const ZONE=1/3;                     // 敵陣の境(画面の高さの割合)
+function inZone(y){ return y < H*ZONE; }
 const totalW = PIECES.reduce((a,p)=>a+p.w,0);
 function pickPiece(){
   let r=Math.random()*totalW;
@@ -497,8 +510,24 @@ function drawBG(t){
   }
 }
 
+/* ================= 敵陣の境い目 ================= */
+function drawZone(){
+  const night=theme==='night', y=Math.round(H*ZONE);
+  ctx.save();
+  ctx.strokeStyle=night?'rgba(255,138,112,.32)':'rgba(185,55,38,.3)';
+  ctx.lineWidth=1; ctx.setLineDash([2,7]);
+  ctx.beginPath(); ctx.moveTo(0,y+.5); ctx.lineTo(W,y+.5); ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.fillStyle=night?'rgba(255,138,112,.7)':'rgba(185,55,38,.7)';
+  ctx.font=`13px 'Hiragino Mincho ProN','Yu Mincho',serif`;
+  ctx.textAlign='right'; ctx.textBaseline='bottom';
+  ctx.fillText('敵 陣',W-14,y-6);
+  ctx.restore();
+}
+
 /* ================= falling kanji ================= */
 const pieces=[];
+const FLIP_MS=220;
 function spawnPiece(){
   const def=pickPiece();
   const base=Math.min(W,H);
@@ -536,16 +565,27 @@ function updatePieces(dt,t){
     p.x+=p.vx*dt*.06; p.y+=p.vy*dt*.06;
     p.rot+=p.rv*dt*.06;
     p.rot=Math.max(-.5,Math.min(.5,p.rot));
+    // 敵陣に出入りするたび、駒が裏返る(成れる駒だけ)
+    const z=inZone(p.y);
+    if(z!==p.zone){ if(p.zone!==undefined && p.def.pro) p.flip=0; p.zone=z; }
+    if(p.flip!==undefined){ p.flip+=dt; if(p.flip>=FLIP_MS) p.flip=undefined; }
     if(dirMode==='top') p.x+=Math.sin(t*.0015+p.sway)*.25;
     const m=p.r*3;
     if(p.x<-m||p.x>W+m||p.y<-m||p.y>H+m) pieces.splice(i,1);
   }
 }
 function drawPiece(p,t){
-  const {x,y,r,rot,def}=p;
+  const {x,y,r,rot}=p;
+  // 成れる駒は、敵陣にいる間だけ成り駒の面を見せる(裏返りは scaleX で表す)
+  const pd = p.zone ? proDef(p.def) : null;
+  const def = pd || p.def;
   const pulse=.85+.15*Math.sin((t-p.born)*.004+p.sway);
   ctx.save();
   ctx.translate(x,y); ctx.rotate(rot);
+  if(p.flip!==undefined){
+    const f=p.flip/FLIP_MS;                 // 0→1。新しい面が、細い所から開いてくる
+    ctx.scale(Math.max(.05,Math.sin(f*Math.PI/2)),1);
+  }
   ctx.textAlign='center'; ctx.textBaseline='middle';
   ctx.font=`${theme==='night'?500:600} ${r*1.5}px 'Hiragino Mincho ProN','Yu Mincho',serif`;
   if(theme==='night'){
@@ -579,8 +619,38 @@ function hexToRgb(h){
   const n=parseInt(h.slice(1),16);
   return [(n>>16)&255,(n>>8)&255,n&255];
 }
+/* 敵陣で開く駒は成る:成り先の定義に差し替え、大きく開く。成れない駒はそのまま */
+function promoteAt(p){
+  const pd=proDef(p.def);
+  if(!pd || !inZone(p.y)) return p;
+  return {...p, def:pd, inkCol:INK_VERM, big:1, promoted:true};
+}
+const labels=[];     // 成った瞬間に立ちのぼる「成」の字
+function updateLabels(dt){
+  for(let i=labels.length-1;i>=0;i--){
+    labels[i].t+=dt*.001;
+    if(labels[i].t>1.1) labels.splice(i,1);
+  }
+}
+function drawLabels(){
+  const night=theme==='night';
+  for(const l of labels){
+    const pr=l.t/1.1;
+    ctx.save();
+    ctx.translate(l.x, l.y-30-pr*50);
+    ctx.globalAlpha=Math.min(1,(1-pr)*1.6);
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.font=`700 ${34+10*Math.sin(Math.min(1,pr*3)*Math.PI)}px 'Hiragino Mincho ProN','Yu Mincho',serif`;
+    ctx.fillStyle=night?'#ff8a70':'rgba(185,55,38,.95)';
+    if(night){ ctx.shadowColor='#e0503f'; ctx.shadowBlur=18; }
+    ctx.fillText('成',0,0);
+    ctx.restore();
+  }
+  ctx.globalAlpha=1; ctx.shadowBlur=0;
+}
 function launchFirework(p){
   const {x,y,rot,def,r}=p;
+  if(p.promoted) labels.push({x,y,t:0});
   const cell=r*2.1;
   const cos=Math.cos(rot), sin=Math.sin(rot);
   const ro=(dx,dy)=>({x:dx*cos-dy*sin, y:dx*sin+dy*cos});
@@ -588,13 +658,13 @@ function launchFirework(p){
   const rgb = def.red ? [255,90,110] : hexToRgb(p.neon);
 
   if(theme==='sumi'){
-    inkDrop(p,ro,cell);
+    inkDrop(p,ro,cell*(p.big?1.3:1));
     soundSumi(false);
     return;
   }
 
   const S = Math.min(W,H)/900;     // 画面サイズ正規化
-  const B = 1.5;                    // 開く瞬間の大きさ倍率
+  const B = p.big ? 1.9 : 1.5;      // 開く瞬間の大きさ倍率(成ると一回り大きい)
   for(const mv of def.m){
     const d=ro(mv.x,mv.y);
     const len=Math.hypot(d.x,d.y); const ux=d.x/len, uy=d.y/len;
@@ -655,6 +725,7 @@ function launchFirework(p){
     parts.push(q);
   }
   popRings.push({x,y,t:0,col});
+  if(p.promoted) popRings.push({x,y,t:-.12,col:'#ffe6a0'});   // 成り:二重の輪
   soundNight();
 }
 function mkPart(x,y,vx,vy,rgb,kind){
@@ -741,6 +812,7 @@ function drawFireworks(advance){
 
   // 4) 開いた瞬間の閃光リングと、明るい火の粉の頭(グロー付き)
   for(const g of popRings){
+    if(g.t<0) continue;
     const pr=g.t/.55, rad=6+pr*90;
     ctx.globalAlpha=(1-pr)*(1-pr)*.7;
     ctx.lineWidth=5*(1-pr);
@@ -993,7 +1065,7 @@ function updateShells(dt){
         def:s.def, x:s.x, y:s.y,
         rot:s.rot, r:s.r, neon:s.col,
       };
-      launchFirework(fake);
+      launchFirework(promoteAt(fake));
       shells.splice(i,1);
     }
   }
@@ -1044,7 +1116,7 @@ function updateDrops(dt){
       // 着水:波紋+その駒の利き筋で墨が広がる(ぽちゃんはlaunchFireworkが鳴らす)
       ripples.push({x:d.x,y:d.ty,t:0});
       const fake={def:d.def, x:d.x, y:d.ty, rot:d.rot, r:d.r, inkCol:d.inkCol, neon:NEON[0]};
-      launchFirework(fake);
+      launchFirework(promoteAt(fake));
       drops.splice(i,1);
     }
   }
@@ -1504,9 +1576,10 @@ cv.addEventListener('pointerdown',e=>{
   for(let i=pieces.length-1;i>=0;i--){
     const p=pieces[i];
     if(Math.hypot(x-p.x,y-p.y) < p.r*1.6){
-      launchFirework(p);
+      const q=promoteAt(p);
+      launchFirework(q);
       pieces.splice(i,1);
-      score++; scoreEl.textContent=score;
+      score+=q.promoted?2:1; scoreEl.textContent=score;
       pressHandled=true;
       if(!hinted){hinted=true;hint.classList.add('gone');}
       break;
@@ -1574,6 +1647,8 @@ const G_PIECES = [
   {k:'銀', hue:'#ff2fd6', pitch:523.3},
   {k:'金', hue:'#b56bff', pitch:587.3},
   {k:'飛', hue:'#ff6b3a', pitch:659.3},
+  {k:'角', hue:'#3affc3', pitch:784.0},
+  {k:'玉', hue:'#5aa0ff', pitch:880.0},
 ];
 // 各駒の利きは既存PIECES定義から借用(花火の形が駒ごとに変わる)
 function defFor(k){ return PIECES.find(p=>p.k===k) || PIECES[0]; }
@@ -1581,7 +1656,7 @@ function gR(){ return Math.max(30, Math.min(52, Math.min(W,H)*.075)); }
 let gPieces=[];          // {def,k,hue,pitch,x,y(正規化),r,lit}
 let gSeq=[], gInput=0, gRound=0, gPhase='idle', gToken=0;
 let gBest=0;
-try{ gBest=parseInt(localStorage.getItem('koma-oboe-best')||'0',10)||0; }catch(e){}
+try{ gBest=parseInt(localStorage.getItem('koma-oboe-best8')||'0',10)||0; }catch(e){}
 
 const gSealEl=document.getElementById('gSeal');
 const gMsgEl=document.getElementById('gMsg');
@@ -1735,10 +1810,12 @@ async function gNextRound(){
 function gTap(x,y){
   if(gPhase!=='input') return;
   const R=gR();
-  let hit=-1;
+  // 8個になって隣どうしが近いので、当たり範囲が重なった所では近い方の駒を取る
+  let hit=-1, best=R*1.5;
   for(let i=0;i<gPieces.length;i++){
     const p=gPieces[i];
-    if(Math.hypot(x-p.x*W, y-p.y*H) < R*1.5){ hit=i; break; }
+    const d=Math.hypot(x-p.x*W, y-p.y*H);
+    if(d<best){ best=d; hit=i; }
   }
   if(hit<0) return;
   gOpen(hit);
@@ -1757,7 +1834,7 @@ function gGameOver(){
   gPhase='idle'; gToken++;
   sfxMiss();
   const cleared=gRound-1;
-  if(cleared>gBest){ gBest=cleared; try{localStorage.setItem('koma-oboe-best',String(gBest));}catch(e){} }
+  if(cleared>gBest){ gBest=cleared; try{localStorage.setItem('koma-oboe-best8',String(gBest));}catch(e){} }
   gShowBest();
   document.getElementById('gOverScore').textContent = cleared>0 ? `${cleared}かい せいこう` : 'ざんねん…';
   document.getElementById('gOverMsg').textContent =
@@ -1810,6 +1887,7 @@ function loop(t){
   if(!paused){
     updatePieces(dtMs,t);
     updateRipples(dtMs);
+    updateLabels(dtMs);
     updateAuto(dtMs);
     if(!gameOn){ if(theme==='night') updateShells(dtMs); else updateDrops(dtMs); }
     if(gameOn) gStepLit(dtMs);
@@ -1825,9 +1903,14 @@ function loop(t){
     if(!gameOn) drawDrops();
   }
   drawRipples();
+  if(!gameOn) drawZone();
   for(const p of pieces) drawPiece(p,t);
+  drawLabels();
   requestAnimationFrame(loop);
 }
+window.__app={pieces,parts,labels,PIECES,
+  get score(){return score;}, get W(){return W;}, get H(){return H;},
+  get gSeq(){return gSeq;}, get gPhase(){return gPhase;}, get gPieces(){return gPieces;}, G_PIECES, gLayout};
 resize();
 for(let i=0;i<4;i++) setTimeout(spawnPiece, i*300);
 requestAnimationFrame(loop);
