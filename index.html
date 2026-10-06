@@ -510,6 +510,18 @@ function drawBG(t){
   }
 }
 
+/* 水墨の駒の縁取り。字の「下」に紙色の縁を敷く(fill の後に stroke すると、
+   輪郭が重なる書体で字の中まで縁がかかる)。呼ぶ側が font を決めたあと、fillText の前に呼ぶ */
+function sumiHalo(txt, size){
+  ctx.lineJoin='round';
+  ctx.lineWidth=Math.max(3, size*.13);
+  ctx.strokeStyle='rgba(244,243,236,.82)';
+  ctx.shadowColor='rgba(244,243,236,.95)';   // ふちをにじませて、貼り付けた縁に見えないようにする
+  ctx.shadowBlur=Math.max(6, size*.16);
+  ctx.strokeText(txt,0,0);
+  ctx.shadowBlur=0;
+}
+
 /* ================= 敵陣の境い目 ================= */
 function drawZone(){
   const night=theme==='night', y=Math.round(H*ZONE);
@@ -598,6 +610,7 @@ function drawPiece(p,t){
     ctx.globalAlpha=.5*pulse;
     ctx.fillText(def.k,0,0);
   }else{
+    sumiHalo(def.k, r*1.5);
     ctx.fillStyle = def.red ? 'rgba(185,55,38,.92)' : 'rgba(28,26,23,.9)';
     ctx.shadowColor = def.red ? 'rgba(185,55,38,.3)' : 'rgba(28,26,23,.25)';
     ctx.shadowBlur=3;
@@ -1128,6 +1141,7 @@ function drawDrops(){
     ctx.translate(d.x,d.y); ctx.rotate(d.rot);
     ctx.textAlign='center'; ctx.textBaseline='middle';
     ctx.font=`600 ${d.r*1.5}px 'Hiragino Mincho ProN','Yu Mincho',serif`;
+    sumiHalo(d.def.k, d.r*1.5);
     ctx.fillStyle = d.def.red ? 'rgba(185,55,38,.92)' : 'rgba(28,26,23,.9)';
     ctx.shadowColor = d.def.red ? 'rgba(185,55,38,.3)' : 'rgba(28,26,23,.25)';
     ctx.shadowBlur=3;
@@ -1268,6 +1282,7 @@ function initFluid(){
       precision highp float; precision highp sampler2D;
       varying vec2 vUv;
       uniform sampler2D uDye;
+      const float INK_FLOOR = 0.17;
       void main(){
         vec3 d = texture2D(uDye, vUv).rgb;
         vec3 paper = vec3(0.946, 0.949, 0.926);
@@ -1278,7 +1293,13 @@ function initFluid(){
         vec3 dd = d * keep;
         dd = dd * (1.0 + 0.6*smoothstep(0.5, 1.4, m));   // 濃部をさらに締める
         vec3 col = paper * exp(-dd * 1.9);
-        gl_FragColor = vec4(col, 1.0);
+        // 墨の濃さに下限:暗い側だけを持ち上げ、いちばん濃い墨でも駒(墨色)より明るく止める。
+        // 明るい側(0.6 より上)はそのまま。明るさだけを動かすので、朱の色みは変わらない
+        float Y  = max(dot(col, vec3(0.299,0.587,0.114)), 0.002);
+        float Yn = mix(INK_FLOOR + Y * (0.5 - INK_FLOOR) / 0.5, Y, smoothstep(0.25, 0.6, Y));
+        float k = min(Yn / Y, 3.0);          // 色みを保てるのは 3 倍まで。足りない分は無彩色で足す
+        col = col * k + vec3(Yn - k * Y);
+        gl_FragColor = vec4(min(col, vec3(1.0)), 1.0);
       }`,
   };
 
@@ -1723,6 +1744,7 @@ function gDraw(t){
     }else{
       const sc=1+lit*0.3;
       ctx.font=`600 ${R*1.5*sc}px 'Hiragino Mincho ProN','Yu Mincho',serif`;
+      sumiHalo(p.k, R*1.5*sc);
       const dark = lit>0 ? 'rgba(10,9,8,1)' : 'rgba(28,26,23,.9)';
       ctx.shadowColor= lit>0 ? 'rgba(28,26,23,.5)' : 'rgba(28,26,23,.25)';
       ctx.shadowBlur= 3+lit*8;
@@ -1910,7 +1932,7 @@ function loop(t){
 }
 window.__app={pieces,parts,labels,PIECES,
   get score(){return score;}, get W(){return W;}, get H(){return H;},
-  get gSeq(){return gSeq;}, get gPhase(){return gPhase;}, get gPieces(){return gPieces;}, G_PIECES, gLayout};
+  get gSeq(){return gSeq;}, get gPhase(){return gPhase;}, get gPieces(){return gPieces;}, G_PIECES, gLayout, get fluid(){return fluid;}};
 resize();
 for(let i=0;i<4;i++) setTimeout(spawnPiece, i*300);
 requestAnimationFrame(loop);
