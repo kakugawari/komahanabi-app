@@ -510,18 +510,6 @@ function drawBG(t){
   }
 }
 
-/* 水墨の駒の縁取り。字の「下」に紙色の縁を敷く(fill の後に stroke すると、
-   輪郭が重なる書体で字の中まで縁がかかる)。呼ぶ側が font を決めたあと、fillText の前に呼ぶ */
-function sumiHalo(txt, size){
-  ctx.lineJoin='round';
-  ctx.lineWidth=Math.max(3, size*.13);
-  ctx.strokeStyle='rgba(244,243,236,.82)';
-  ctx.shadowColor='rgba(244,243,236,.95)';   // ふちをにじませて、貼り付けた縁に見えないようにする
-  ctx.shadowBlur=Math.max(6, size*.16);
-  ctx.strokeText(txt,0,0);
-  ctx.shadowBlur=0;
-}
-
 /* ================= 敵陣の境い目 ================= */
 function drawZone(){
   const night=theme==='night', y=Math.round(H*ZONE);
@@ -610,7 +598,6 @@ function drawPiece(p,t){
     ctx.globalAlpha=.5*pulse;
     ctx.fillText(def.k,0,0);
   }else{
-    sumiHalo(def.k, r*1.5);
     ctx.fillStyle = def.red ? 'rgba(185,55,38,.92)' : 'rgba(28,26,23,.9)';
     ctx.shadowColor = def.red ? 'rgba(185,55,38,.3)' : 'rgba(28,26,23,.25)';
     ctx.shadowBlur=3;
@@ -1141,7 +1128,6 @@ function drawDrops(){
     ctx.translate(d.x,d.y); ctx.rotate(d.rot);
     ctx.textAlign='center'; ctx.textBaseline='middle';
     ctx.font=`600 ${d.r*1.5}px 'Hiragino Mincho ProN','Yu Mincho',serif`;
-    sumiHalo(d.def.k, d.r*1.5);
     ctx.fillStyle = d.def.red ? 'rgba(185,55,38,.92)' : 'rgba(28,26,23,.9)';
     ctx.shadowColor = d.def.red ? 'rgba(185,55,38,.3)' : 'rgba(28,26,23,.25)';
     ctx.shadowBlur=3;
@@ -1744,7 +1730,6 @@ function gDraw(t){
     }else{
       const sc=1+lit*0.3;
       ctx.font=`600 ${R*1.5*sc}px 'Hiragino Mincho ProN','Yu Mincho',serif`;
-      sumiHalo(p.k, R*1.5*sc);
       const dark = lit>0 ? 'rgba(10,9,8,1)' : 'rgba(28,26,23,.9)';
       ctx.shadowColor= lit>0 ? 'rgba(28,26,23,.5)' : 'rgba(28,26,23,.25)';
       ctx.shadowBlur= 3+lit*8;
