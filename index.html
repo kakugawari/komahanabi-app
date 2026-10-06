@@ -231,8 +231,8 @@
   </div>
   <div class="row"><span class="mlbl">向き</span>
     <div class="seg" id="segDir">
-      <button data-v="top" class="on">上から</button>
-      <button data-v="all">四方八方</button>
+      <button data-v="all" class="on">四方八方</button>
+      <button data-v="top">上から</button>
     </div>
   </div>
   <div class="row"><span class="mlbl">速さ</span>
@@ -306,7 +306,7 @@ function resize(){
 window.addEventListener('resize',resize);
 
 /* ================= settings & menu ================= */
-let theme='night', dirMode='top', speedMode='1.7', soundOn=true, autoOn=false;
+let theme='night', dirMode='all', speedMode='1.7', soundOn=true, autoOn=false;
 let gameOn=false, gameSilent=false;
 function wireSeg(id, fn){
   const seg=document.getElementById(id);
