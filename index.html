@@ -229,12 +229,6 @@
       <button data-v="sumi">水墨</button>
     </div>
   </div>
-  <div class="row"><span class="mlbl">向き</span>
-    <div class="seg" id="segDir">
-      <button data-v="all" class="on">四方八方</button>
-      <button data-v="top">上から</button>
-    </div>
-  </div>
   <div class="row"><span class="mlbl">速さ</span>
     <div class="seg" id="segSpd">
       <button data-v="1">緩</button>
@@ -252,6 +246,7 @@
   <div class="row"><span class="mlbl">遊び</span>
     <div class="seg" id="segGame">
       <button data-v="off" class="on">花火</button>
+      <button data-v="all">四方八方</button>
       <button data-v="on">おぼえ</button>
     </div>
   </div>
@@ -306,7 +301,11 @@ function resize(){
 window.addEventListener('resize',resize);
 
 /* ================= settings & menu ================= */
-let theme='night', dirMode='all', speedMode='1.7', soundOn=true, autoOn=false;
+let theme='night', speedMode='1.7', soundOn=true, autoOn=false;
+/* 駒の出方は選ばせず、画風と遊びで決まる。
+   夜空の花火=下から打ち上がる / 水墨=上から流れてくる / 遊び「四方八方」=どちらの画風でも四方から */
+let allDir=false;
+function dirMode(){ return allDir ? 'all' : (theme==='sumi' ? 'top' : 'bottom'); }
 let gameOn=false, gameSilent=false;
 function wireSeg(id, fn){
   const seg=document.getElementById(id);
@@ -321,11 +320,10 @@ wireSeg('segTheme',v=>{
   if(v==='sumi'&&fluid) fluid.reset();
   clearTrail(); clearSenko(); clearAuto();
 });
-wireSeg('segDir',v=>dirMode=v);
 wireSeg('segSpd',v=>speedMode=v);
 wireSeg('segSnd',v=>soundOn=(v==='on'));
 wireSeg('segAuto',v=>{autoOn=(v==='on'); autoTimer=600;});
-wireSeg('segGame',v=>{ v==='on' ? enterGame() : exitGame(); });
+wireSeg('segGame',v=>{ allDir=(v==='all'); if(v==='on'){ if(!gameOn) enterGame(); } else if(gameOn) exitGame(); });
 const titleBtn=document.getElementById('titleBtn');
 titleBtn.addEventListener('click',e=>{
   e.stopPropagation();
@@ -534,9 +532,20 @@ function spawnPiece(){
   const r=Math.max(30, Math.min(52, base*.065));
   let x,y,vx,vy;
   const spd=(base*.0022+1.1)*speedMult()*(.85+Math.random()*.3);
-  if(dirMode==='top'){
+  const dir=dirMode();
+  let g=0;
+  if(dir==='top'){
     x=r+Math.random()*(W-2*r); y=-r*2;
     vx=(Math.random()-.5)*.4; vy=spd;
+  }else if(dir==='bottom'){
+    // 打ち上げ花火:下から勢いよく昇り、重力で減速して頂点でふわっと止まり、落ちていく。
+    // 頂点の高さをばらして、上の敵陣まで届く駒と届かない駒を作る
+    x=r+Math.random()*(W-2*r); y=H+r*2;
+    vx=(Math.random()-.5)*.4;
+    const apex=H*(.1+Math.random()*.55);
+    const a=380*Math.pow(speedMult()/1.7,2);          // px/s^2。速さの設定で、高さは変えず時間だけ縮める
+    vy=-Math.sqrt(2*a*(y-apex))/60;                    // vy は 1/60 秒あたりの px
+    g=a/60/1000;                                       // vy の 1ms あたりの増え
   }else{
     const ang=Math.random()*Math.PI*2;
     const cx=W/2, cy=H/2, R=Math.hypot(W,H)/2+r*2;
@@ -546,7 +555,7 @@ function spawnPiece(){
     vx=(tx-x)/d*spd; vy=(ty-y)/d*spd;
   }
   pieces.push({
-    def, x, y, vx, vy, r,
+    def, x, y, vx, vy, r, g,
     rot:(Math.random()-.5)*.4,
     rv:(Math.random()-.5)*.01,
     sway:Math.random()*Math.PI*2,
@@ -562,6 +571,7 @@ function updatePieces(dt,t){
   if(spawnTimer<=0 && !autoOn && !gameOn && pieces.length<22){ spawnPiece(); spawnTimer=interval*(.6+Math.random()*.8); }
   for(let i=pieces.length-1;i>=0;i--){
     const p=pieces[i];
+    if(p.g) p.vy+=p.g*dt;
     p.x+=p.vx*dt*.06; p.y+=p.vy*dt*.06;
     p.rot+=p.rv*dt*.06;
     p.rot=Math.max(-.5,Math.min(.5,p.rot));
@@ -569,7 +579,7 @@ function updatePieces(dt,t){
     const z=inZone(p.y);
     if(z!==p.zone){ if(p.zone!==undefined && p.def.pro) p.flip=0; p.zone=z; }
     if(p.flip!==undefined){ p.flip+=dt; if(p.flip>=FLIP_MS) p.flip=undefined; }
-    if(dirMode==='top') p.x+=Math.sin(t*.0015+p.sway)*.25;
+    if(p.g===0 && dirMode()==='top') p.x+=Math.sin(t*.0015+p.sway)*.25;
     const m=p.r*3;
     if(p.x<-m||p.x>W+m||p.y<-m||p.y>H+m) pieces.splice(i,1);
   }
@@ -1917,7 +1927,7 @@ function loop(t){
 }
 window.__app={pieces,parts,labels,PIECES,
   get score(){return score;}, get W(){return W;}, get H(){return H;},
-  get gSeq(){return gSeq;}, get gPhase(){return gPhase;}, get gPieces(){return gPieces;}, G_PIECES, gLayout, get fluid(){return fluid;}};
+  get gSeq(){return gSeq;}, get gPhase(){return gPhase;}, get gPieces(){return gPieces;}, G_PIECES, gLayout, get fluid(){return fluid;}, spawnPiece, updatePieces, dirMode};
 resize();
 for(let i=0;i<4;i++) setTimeout(spawnPiece, i*300);
 requestAnimationFrame(loop);
