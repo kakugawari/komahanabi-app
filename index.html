@@ -107,6 +107,11 @@
     box-shadow:0 0 14px rgba(140,220,255,.55);
   }
 
+  /* ---------- 診断(メニューの一番下) ---------- */
+  #diag{font-size:9.5px;letter-spacing:.04em;line-height:1.7;padding:0 6px;max-width:240px;
+    color:rgba(230,245,255,.38);font-family:ui-monospace,Menlo,monospace;word-break:break-all;}
+  body.sumi #diag{color:rgba(28,26,23,.4);}
+
   /* ---------- sumi theme ---------- */
   body.sumi{background:var(--paper);}
   body.sumi #titleTxt{color:rgba(28,26,23,.85);text-shadow:none;}
@@ -256,6 +261,7 @@
       <button data-v="off">なし</button>
     </div>
   </div>
+  <div id="diag"></div>
 </div>
 
 <!-- おぼえ花火モード -->
@@ -328,7 +334,22 @@ const titleBtn=document.getElementById('titleBtn');
 titleBtn.addEventListener('click',e=>{
   e.stopPropagation();
   document.body.classList.toggle('menuOpen');
+  fillDiag();
 });
+/* 診断:実機の画面の大きさと安全域を、メニューの一番下に出す(写真 1 枚で原因が分かるように)。
+   版の番号を最初から入れておく: 番号が違えば「届いていない」、同じなら「届いて効いていない」 */
+const VERSION='2026-10-06b';
+function fillDiag(){
+  const el=document.getElementById('diag'); if(!el) return;
+  const probe=document.createElement('div');
+  probe.style.cssText='position:fixed;left:0;top:0;visibility:hidden;padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom) 0;';
+  document.body.appendChild(probe);
+  const cs=getComputedStyle(probe);
+  const top=parseFloat(cs.paddingTop)||0, bot=parseFloat(cs.paddingBottom)||0;
+  probe.remove();
+  const standalone = (window.navigator.standalone===true) || (window.matchMedia&&matchMedia('(display-mode: standalone)').matches);
+  el.textContent=`v${VERSION} / ${standalone?'ホーム画面':'ブラウザ'} / 窓 ${innerWidth}x${innerHeight} / 画面 ${screen.width}x${screen.height} / 安全域 上${top} 下${bot} / screenY ${window.screenY}`;
+}
 function speedMult(){
   return speedMode==='rand' ? .7+Math.random()*2.3 : parseFloat(speedMode);
 }
